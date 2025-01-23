@@ -15,6 +15,9 @@ Required environment variables:
 - `ZENDESK_API_USER`: Email address of your Zendesk user
 - `INKEEP_API_KEY`: Your Inkeep API key
 
+Optional:
+- `AI_AGENT_USER_ID`: The User ID you'd like the AI bot to have if leaving internal comments
+
 2. Copy `.env.sample` to `.env` and fill in all required values
 
 3. Run the setup script to create the Zendesk webhook and trigger:

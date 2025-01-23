@@ -4,7 +4,9 @@ import { generateQaModeResponse } from '@/lib/intelligent-support/support';
 import type { ZendeskMessage } from '@/lib/zendeskConversations';
 import type { CreateOrUpdateTicket } from 'node-zendesk/clients/core/tickets';
 import { unstable_after as after } from 'next/server';
+import type { User } from 'node-zendesk/clients/core/users';
 
+// Timeout of the Serverless Function. Increase if adding multiple AI steps. Check your Vercel plan.
 export const maxDuration = 60;
 
 // Initialize Zendesk client
@@ -14,18 +16,20 @@ const client = createClient({
   subdomain: process.env.ZENDESK_SUBDOMAIN!,
 });
 
+const bodySchema = z
+  .object({
+    ticket_id: z.string().transform(val => Number.parseInt(val, 10)),
+    ticket_title: z.string(),
+  })
+  .passthrough();
+
 export const POST = async (req: Request) => {
-  let body;
+  let body: z.infer<typeof bodySchema>;
   try {
     body = await req.json();
   } catch (e) {
     return new Response(JSON.stringify({ error: 'Invalid JSON in request body' }), { status: 400 });
   }
-
-  const bodySchema = z.object({
-    ticket_id: z.string().transform(val => Number.parseInt(val, 10)),
-    ticket_title: z.string(),
-  });
 
   const result = bodySchema.safeParse(body);
 
@@ -65,12 +69,8 @@ export const POST = async (req: Request) => {
     const userMetadata = userDetailsResponse.result.user_fields;
     const { organization_fields, tags, notes, name } = orgDetails?.result ?? {};
 
-    console.log('User Metadata:', userMetadata);
-    console.log('Organization Metadata:', organization_fields, tags, notes, name);
-
-
     // Create a cache for author details
-    const authorCache = new Map<number, any>();
+    const authorCache = new Map<number, User>();
 
     // Get unique author IDs from comments
     const authorIds = [...new Set(commentsResponse.map(comment => comment.author_id))];
@@ -83,25 +83,30 @@ export const POST = async (req: Request) => {
       }),
     );
 
-    const messages = commentsResponse.map<ZendeskMessage>(comment => {
-      const author = authorCache.get(comment.author_id);
-      return {
-        id: comment.id,
-        received: comment.created_at,
-        author: {
-          type: author.role === 'end-user' ? 'user' : 'business',
-          name: author.name,
-          email: author.email,
-        },
-        content: {
-          type: 'text',
-          text: comment.body,
-        },
-        source: {
-          type: 'zendesk',
-        },
-      } as ZendeskMessage;
-    });
+    const messages = commentsResponse
+      .map(comment => {
+        const author = authorCache.get(comment.author_id);
+        if (!author) {
+          return null;
+        }
+        return {
+          id: comment.id,
+          received: comment.created_at,
+          author: {
+            type: author.role === 'end-user' ? 'user' : 'business',
+            name: author.name,
+            email: author.email,
+          },
+          content: {
+            type: 'text',
+            text: comment.body,
+          },
+          source: {
+            type: 'zendesk',
+          },
+        } as ZendeskMessage;
+      })
+      .filter((message): message is ZendeskMessage => message !== null);
 
     const metadata = {
       ...userMetadata,

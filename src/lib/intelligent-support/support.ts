@@ -6,7 +6,7 @@ import type { z } from 'zod';
 import { generateText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { ProvideRecordsConsideredToolSchema } from './schemas';
-import type { ZendeskMessage } from '../zendeskConversations';
+import { zendeskTicketToAiMessages, type ZendeskMessage } from '../zendeskConversations';
 import { systemPrompt } from './prompts';
 
 const inkeepModel = 'inkeep-qa-expert';
@@ -30,13 +30,7 @@ export const generateQaModeResponse = async ({
       role: 'system',
       content: systemPrompt,
     },
-    ...messages.map(
-      message =>
-        ({
-          role: message.author.type === 'user' ? 'user' : 'assistant',
-          content: message.content.text,
-        }) as CoreMessage,
-    ),
+    ...zendeskTicketToAiMessages(messages),
   ];
   const { text, toolCalls } = await generateText({
     model: openai(inkeepModel),

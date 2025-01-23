@@ -5,6 +5,8 @@ import type { ZendeskMessage } from '@/lib/zendeskConversations';
 import type { CreateOrUpdateTicket } from 'node-zendesk/clients/core/tickets';
 import { unstable_after as after } from 'next/server';
 import type { User } from 'node-zendesk/clients/core/users';
+// import { zendeskTicketToAiMessages } from '@/lib/zendeskConversations';
+// import { aiTriageTicket, formatTriageComment, triageTicket } from '@/lib/ticket-routing/ai';
 
 // Timeout of the Serverless Function. Increase if adding multiple AI steps. Check your Vercel plan.
 export const maxDuration = 60;
@@ -116,7 +118,28 @@ export const POST = async (req: Request) => {
       name,
     };
 
+    const author_id = process.env.AI_AGENT_USER_ID ? Number(process.env.AI_AGENT_USER_ID) : undefined;
+
     after(async () => {
+
+      // Optional: Use an AI model to classify and route tickets
+      // Example: Avoid skip Auto-reply if Billing related questions
+
+      // const aiTriageData = await aiTriageTicket(zendeskTicketToAiMessages(messages));
+
+      // if (aiTriageData.category === 'account_billing') {
+      //   await client.tickets.update(ticket_id, {
+      //     ticket: {
+      //       comments: {
+      //         body: formatTriageComment(aiTriageData),
+      //         public: false,
+      //         ...(author_id && { author_id }),
+      //       },
+      //     },
+      //   } as CreateOrUpdateTicket);
+      //   return;
+      // }
+
       const response = await generateQaModeResponse({ messages, metadata });
 
       console.log('AI draft response complete, posting to zendesk');
@@ -126,7 +149,7 @@ export const POST = async (req: Request) => {
           comment: {
             body: response.text,
             public: !process.env.INTERNAL_ONLY,
-            ...(process.env.AI_AGENT_USER_ID && { author_id: Number(process.env.AI_AGENT_USER_ID) }),
+            ...(author_id && { author_id }),
           },
         },
       } as CreateOrUpdateTicket);
@@ -137,7 +160,7 @@ export const POST = async (req: Request) => {
             comment: {
               body: `AI Agent had ${response.aiAnnotations.answerConfidence} confidence level in its answer`,
               public: false,
-              ...(process.env.AI_AGENT_USER_ID && { author_id: Number(process.env.AI_AGENT_USER_ID) }),
+              ...(author_id && { author_id }),
             },
           },
         } as CreateOrUpdateTicket);

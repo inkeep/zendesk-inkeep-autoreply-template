@@ -26,7 +26,9 @@ const SIGNING_SECRET_ALGORITHM = 'sha256';
 function isValidSignature(signature: string, body: string, timestamp: string): boolean {
   const hmac = crypto.createHmac(SIGNING_SECRET_ALGORITHM, SIGNING_SECRET);
   const sig = hmac.update(timestamp + body).digest('base64');
-  return Buffer.compare(Buffer.from(signature), Buffer.from(sig)) === 0;
+  const isValid = Buffer.compare(Buffer.from(signature), Buffer.from(sig)) === 0;
+  console.log(`Webhook signature verification: ${isValid ? 'successful' : 'failed'}`);
+  return isValid;
 }
 
 const bodySchema = z
@@ -37,6 +39,7 @@ const bodySchema = z
   .passthrough();
 
 export const POST = async (req: Request) => {
+  console.log('Received webhook request');
   // Get the signature headers
   const signature = req.headers.get('x-zendesk-webhook-signature');
   const timestamp = req.headers.get('x-zendesk-webhook-signature-timestamp');
@@ -46,6 +49,7 @@ export const POST = async (req: Request) => {
   
   // Verify the signature
   if (!signature || !timestamp || !isValidSignature(signature, rawBody, timestamp)) {
+    console.log('Webhook request rejected: Invalid signature');
     return new Response(
       JSON.stringify({ error: 'Invalid webhook signature' }),
       { status: 401 }
@@ -148,13 +152,13 @@ export const POST = async (req: Request) => {
     const author_id = process.env.AI_AGENT_USER_ID ? Number(process.env.AI_AGENT_USER_ID) : undefined;
 
     after(async () => {
-
-      // Optional: Use an AI model to classify and route tickets
-      // Example: Avoid skip Auto-reply if Billing related questions
+      console.log(`Processing ticket ${ticket_id} with AI triage`);
+      
       if ((process.env.AI_TRIAGE_ENABLED ?? false) === 'true') {
         const aiTriageData = await aiTriageTicket(zendeskTicketToAiMessages(messages));
 
         if (aiTriageData.category === 'account_billing') {
+          console.log(`Ticket ${ticket_id}: Identified as billing issue, adding internal note`);
           await client.tickets.update(ticket_id, {
             ticket: {
               comment: {
@@ -169,9 +173,9 @@ export const POST = async (req: Request) => {
       }
 
       const response = await generateQaModeResponse({ messages, metadata });
+      console.log(`AI response generated for ticket ${ticket_id}`);
 
-      console.log('AI draft response complete, posting to zendesk');
-      // First add the public comment
+      console.log(`Posting public comment to ticket ${ticket_id}`);
       await client.tickets.update(ticket_id, {
         ticket: {
           comment: {
@@ -181,8 +185,9 @@ export const POST = async (req: Request) => {
           },
         },
       } as CreateOrUpdateTicket);
+
       if (response.aiAnnotations.answerConfidence !== 'very_confident') {
-        console.log('not confident in user question');
+        console.log(`Adding low confidence note to ticket ${ticket_id}`);
         await client.tickets.update(ticket_id, {
           ticket: {
             comment: {

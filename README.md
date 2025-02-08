@@ -14,6 +14,7 @@ Required environment variables:
 - `ZENDESK_API_TOKEN`: Generate at [Zendesk API token docs](https://support.zendesk.com/hc/en-us/articles/4408889192858-Generating-a-new-API-token)
 - `ZENDESK_API_USER`: Email address of your Zendesk user
 - `AUTO_RESPONDER_INKEEP_API_KEY`: Your Inkeep API key
+- `ZENDESK_WEBHOOK_SECRET`: A secret key for the Zendesk webhook [docs](https://developer.zendesk.com/documentation/webhooks/verifying/)
 
 Optional:
 - `AI_AGENT_USER_ID`: The User ID you'd like the AI bot to have if leaving internal comments

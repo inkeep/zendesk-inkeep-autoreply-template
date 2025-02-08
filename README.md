@@ -13,7 +13,7 @@ Required environment variables:
 - `ZENDESK_SUBDOMAIN`: Your Zendesk subdomain (e.g., if your Zendesk URL is mycompany.zendesk.com, enter 'mycompany')
 - `ZENDESK_API_TOKEN`: Generate at [Zendesk API token docs](https://support.zendesk.com/hc/en-us/articles/4408889192858-Generating-a-new-API-token)
 - `ZENDESK_API_USER`: Email address of your Zendesk user
-- `INKEEP_API_KEY`: Your Inkeep API key
+- `AUTO_RESPONDER_INKEEP_API_KEY`: Your Inkeep API key
 
 Optional:
 - `AI_AGENT_USER_ID`: The User ID you'd like the AI bot to have if leaving internal comments

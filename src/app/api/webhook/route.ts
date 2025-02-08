@@ -130,7 +130,7 @@ export const POST = async (req: Request) => {
       // if (aiTriageData.category === 'account_billing') {
       //   await client.tickets.update(ticket_id, {
       //     ticket: {
-      //       comments: {
+      //       comment: {
       //         body: formatTriageComment(aiTriageData),
       //         public: false,
       //         ...(author_id && { author_id }),

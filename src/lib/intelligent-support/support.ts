@@ -21,7 +21,7 @@ export const generateQaModeResponse = async ({
   supportApiKey?: string;
 }) => {
   const openai = createOpenAI({
-    apiKey: supportApiKey || process.env.INKEEP_API_KEY,
+    apiKey: supportApiKey || process.env.AUTO_RESPONDER_INKEEP_API_KEY,
     baseURL: 'https://api.inkeep.com/v1',
   });
 

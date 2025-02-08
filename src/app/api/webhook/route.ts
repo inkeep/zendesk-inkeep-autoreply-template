@@ -7,6 +7,7 @@ import { unstable_after as after } from 'next/server';
 import type { User } from 'node-zendesk/clients/core/users';
 import { zendeskTicketToAiMessages } from '@/lib/zendeskConversations';
 import { aiTriageTicket, formatTriageComment } from '@/lib/ticket-routing/ai';
+import crypto from 'node:crypto';
 
 // Timeout of the Serverless Function. Increase if adding multiple AI steps. Check your Vercel plan.
 export const maxDuration = 60;
@@ -18,6 +19,16 @@ const client = createClient({
   subdomain: process.env.ZENDESK_SUBDOMAIN!,
 });
 
+// Add these constants at the top of the file
+const SIGNING_SECRET = process.env.ZENDESK_WEBHOOK_SECRET!;
+const SIGNING_SECRET_ALGORITHM = 'sha256';
+
+function isValidSignature(signature: string, body: string, timestamp: string): boolean {
+  const hmac = crypto.createHmac(SIGNING_SECRET_ALGORITHM, SIGNING_SECRET);
+  const sig = hmac.update(timestamp + body).digest('base64');
+  return Buffer.compare(Buffer.from(signature), Buffer.from(sig)) === 0;
+}
+
 const bodySchema = z
   .object({
     ticket_id: z.string().transform(val => Number.parseInt(val, 10)),
@@ -26,9 +37,25 @@ const bodySchema = z
   .passthrough();
 
 export const POST = async (req: Request) => {
+  // Get the signature headers
+  const signature = req.headers.get('x-zendesk-webhook-signature');
+  const timestamp = req.headers.get('x-zendesk-webhook-signature-timestamp');
+  
+  // Get the raw body as text
+  const rawBody = await req.text();
+  
+  // Verify the signature
+  if (!signature || !timestamp || !isValidSignature(signature, rawBody, timestamp)) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid webhook signature' }),
+      { status: 401 }
+    );
+  }
+
+  // Parse the body as JSON after verification
   let body: z.infer<typeof bodySchema>;
   try {
-    body = await req.json();
+    body = JSON.parse(rawBody);
   } catch (e) {
     return new Response(JSON.stringify({ error: 'Invalid JSON in request body' }), { status: 400 });
   }

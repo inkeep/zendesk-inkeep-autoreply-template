@@ -124,7 +124,7 @@ export const POST = async (req: Request) => {
 
       // Optional: Use an AI model to classify and route tickets
       // Example: Avoid skip Auto-reply if Billing related questions
-      if (process.env.AI_TRIAGE_ENABLED === 'true') {
+      if ((process.env.AI_TRIAGE_ENABLED ?? false) === 'true') {
         const aiTriageData = await aiTriageTicket(zendeskTicketToAiMessages(messages));
 
         if (aiTriageData.category === 'account_billing') {

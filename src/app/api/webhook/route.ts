@@ -5,8 +5,8 @@ import type { ZendeskMessage } from '@/lib/zendeskConversations';
 import type { CreateOrUpdateTicket } from 'node-zendesk/clients/core/tickets';
 import { unstable_after as after } from 'next/server';
 import type { User } from 'node-zendesk/clients/core/users';
-// import { zendeskTicketToAiMessages } from '@/lib/zendeskConversations';
-// import { aiTriageTicket, formatTriageComment, triageTicket } from '@/lib/ticket-routing/ai';
+import { zendeskTicketToAiMessages } from '@/lib/zendeskConversations';
+import { aiTriageTicket, formatTriageComment } from '@/lib/ticket-routing/ai';
 
 // Timeout of the Serverless Function. Increase if adding multiple AI steps. Check your Vercel plan.
 export const maxDuration = 60;
@@ -124,21 +124,22 @@ export const POST = async (req: Request) => {
 
       // Optional: Use an AI model to classify and route tickets
       // Example: Avoid skip Auto-reply if Billing related questions
+      if (process.env.AI_TRIAGE_ENABLED === 'true') {
+        const aiTriageData = await aiTriageTicket(zendeskTicketToAiMessages(messages));
 
-      // const aiTriageData = await aiTriageTicket(zendeskTicketToAiMessages(messages));
-
-      // if (aiTriageData.category === 'account_billing') {
-      //   await client.tickets.update(ticket_id, {
-      //     ticket: {
-      //       comment: {
-      //         body: formatTriageComment(aiTriageData),
-      //         public: false,
-      //         ...(author_id && { author_id }),
-      //       },
-      //     },
-      //   } as CreateOrUpdateTicket);
-      //   return;
-      // }
+        if (aiTriageData.category === 'account_billing') {
+          await client.tickets.update(ticket_id, {
+            ticket: {
+              comment: {
+                body: formatTriageComment(aiTriageData),
+                public: false,
+                ...(author_id && { author_id }),
+              },
+            },
+          } as CreateOrUpdateTicket);
+          return;
+        }
+      }
 
       const response = await generateQaModeResponse({ messages, metadata });
 

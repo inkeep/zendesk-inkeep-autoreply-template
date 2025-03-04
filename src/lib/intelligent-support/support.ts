@@ -32,6 +32,7 @@ export const generateQaModeResponse = async ({
     },
     ...zendeskTicketToAiMessages(messages),
   ];
+  console.dir(formattedMessages, { depth: null });
   const { text, toolCalls } = await generateText({
     model: openai(inkeepModel),
     messages: formattedMessages as CoreMessage[],

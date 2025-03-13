@@ -180,7 +180,7 @@ export const POST = async (req: Request) => {
         ticket: {
           comment: {
             body: response.text,
-            public: !process.env.INTERNAL_ONLY,
+            public: process.env.ENABLE_PUBLIC_RESPONSES === "true",
             ...(author_id && { author_id }),
           },
         },

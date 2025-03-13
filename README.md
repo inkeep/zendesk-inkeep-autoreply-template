@@ -18,6 +18,7 @@ Required environment variables:
 
 Optional:
 - `AI_AGENT_USER_ID`: The User ID you'd like the AI bot to have if leaving internal comments
+- `ENABLE_PUBLIC_RESPONSES`: Set to "true" to make AI responses visible to customers (defaults to internal responses only)
 
 2. Copy `.env.sample` to `.env` and fill in all required values
 
@@ -44,9 +45,11 @@ chmod +x ./cleanup.sh
 
 ## Debug Mode
 
-To run the AI Autoresponder in debug mode:
+By default, the AI Autoresponder runs in debug mode (internal notes only). In this mode, responses will only be visible to your support team as internal notes and not to the end-users.
 
-1. Set the environment variable: `INTERNAL_ONLY=true`
+To enable customer-facing responses:
+
+1. Set the environment variable: `ENABLE_PUBLIC_RESPONSES=true`
 2. Redeploy the application
 
-In debug mode, the AI Auto Responder will only create internal notes (not visible to end-users) when responding to tickets.
+When `ENABLE_PUBLIC_RESPONSES` is not set or is set to any value other than "true", the AI Auto Responder will only create internal notes (not visible to end-users) when responding to tickets.

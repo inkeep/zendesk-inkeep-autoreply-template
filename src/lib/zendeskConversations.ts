@@ -18,17 +18,9 @@ export interface ZendeskMessage {
 }
 
 export function extractImageUrls(htmlBody: string): string[] {
-  const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
-  const urls: string[] = [];
-  let match: RegExpExecArray | null;
-
-  while (true) {
-    match = imgRegex.exec(htmlBody);
-    if (match === null) break;
-    urls.push(match[1]);
-  }
-
-  return urls;
+  const subdomain = process.env.ZENDESK_SUBDOMAIN;
+  const imgRegex = new RegExp(`<img[^>]+src=["'](https:\\/\\/${subdomain}\\.zendesk\\.com\\/attachments\\/token\\/[^"']+)["'][^>]*>`, 'gi');
+  return Array.from(htmlBody.matchAll(imgRegex), match => match[1]);
 }
 
 export async function encodeImageUrls(imageUrls: string[]): Promise<ImagePart[]> {

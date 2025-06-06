@@ -5,7 +5,7 @@ import type { ZendeskMessage } from '@/lib/zendeskConversations';
 import type { CreateOrUpdateTicket } from 'node-zendesk/clients/core/tickets';
 import { unstable_after as after } from 'next/server';
 import type { User } from 'node-zendesk/clients/core/users';
-import { zendeskTicketToAiMessages } from '@/lib/zendeskConversations';
+import { encodeImageUrls, extractImageUrls, zendeskTicketToAiMessages } from '@/lib/zendeskConversations';
 import { aiTriageTicket, formatTriageComment } from '@/lib/ticket-routing/ai';
 import crypto from 'node:crypto';
 
@@ -116,12 +116,23 @@ export const POST = async (req: Request) => {
       }),
     );
 
-    const messages = commentsResponse
-      .map(comment => {
+    const messagesPromises = await Promise.all(commentsResponse
+      .map(async comment => {
         const author = authorCache.get(comment.author_id);
         if (!author) {
           return null;
         }
+
+        const attachmentUrls = comment.attachments
+          ?.filter((attachment: { content_type: string }) => attachment.content_type.startsWith('image/'))
+          .map((attachment: { content_url: string }) => attachment.content_url) ?? [];
+        
+        const inlineImageUrls = extractImageUrls(comment.html_body);
+        
+        const imageUrls = [...attachmentUrls, ...inlineImageUrls];
+    
+        const images = imageUrls.length > 0 ? await encodeImageUrls(imageUrls) : [];
+
         return {
           id: comment.id,
           received: comment.created_at,
@@ -130,16 +141,18 @@ export const POST = async (req: Request) => {
             name: author.name,
             email: author.email,
           },
-          content: {
+          content: [{
             type: 'text',
             text: comment.body,
-          },
+          }, ...images],
           source: {
             type: 'zendesk',
           },
         } as ZendeskMessage;
       })
-      .filter((message): message is ZendeskMessage => message !== null);
+    );
+
+    const messages = messagesPromises.filter((message): message is ZendeskMessage => message !== null);
 
     const metadata = {
       ...userMetadata,

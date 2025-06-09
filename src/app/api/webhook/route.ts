@@ -43,10 +43,12 @@ export const POST = async (req: Request) => {
   // Get the signature headers
   const signature = req.headers.get('x-zendesk-webhook-signature');
   const timestamp = req.headers.get('x-zendesk-webhook-signature-timestamp');
-  
+
+  const isPublicResponsesEnabled = process.env.ENABLE_PUBLIC_RESPONSES === "true";
+
   // Get the raw body as text
   const rawBody = await req.text();
-  
+
   // Verify the signature
   if (!signature || !timestamp || !isValidSignature(signature, rawBody, timestamp)) {
     console.log('Webhook request rejected: Invalid signature');
@@ -126,11 +128,11 @@ export const POST = async (req: Request) => {
         const attachmentUrls = comment.attachments
           ?.filter((attachment: { content_type: string }) => attachment.content_type.startsWith('image/'))
           .map((attachment: { content_url: string }) => attachment.content_url) ?? [];
-        
+
         const inlineImageUrls = extractImageUrls(comment.html_body);
-        
+
         const imageUrls = [...attachmentUrls, ...inlineImageUrls];
-    
+
         const images = imageUrls.length > 0 ? await encodeImageUrls(imageUrls) : [];
 
         return {
@@ -166,7 +168,7 @@ export const POST = async (req: Request) => {
 
     after(async () => {
       console.log(`Processing ticket ${ticket_id} with AI triage`);
-      
+
       if ((process.env.AI_TRIAGE_ENABLED ?? false) === 'true') {
         const aiTriageData = await aiTriageTicket(zendeskTicketToAiMessages(messages));
 
@@ -176,7 +178,7 @@ export const POST = async (req: Request) => {
             ticket: {
               comment: {
                 body: formatTriageComment(aiTriageData),
-                public: false,
+                public: false, // only ever meant to be an internal note (not visible to the customer)
                 ...(author_id && { author_id }),
               },
             },
@@ -188,28 +190,32 @@ export const POST = async (req: Request) => {
       const response = await generateQaModeResponse({ messages, metadata });
       console.log(`AI response generated for ticket ${ticket_id}`);
 
-      console.log(`Posting public comment to ticket ${ticket_id}`);
-      await client.tickets.update(ticket_id, {
-        ticket: {
-          comment: {
-            body: response.text,
-            public: process.env.ENABLE_PUBLIC_RESPONSES === "true",
-            ...(author_id && { author_id }),
-          },
-        },
-      } as CreateOrUpdateTicket);
-
-      if (response.aiAnnotations.answerConfidence !== 'very_confident') {
-        console.log(`Adding low confidence note to ticket ${ticket_id}`);
-        await client.tickets.update(ticket_id, {
-          ticket: {
-            comment: {
-              body: `AI Agent had ${response.aiAnnotations.answerConfidence} confidence level in its answer`,
-              public: false,
-              ...(author_id && { author_id }),
+      switch (response.aiAnnotations.answerConfidence) {
+        case 'very_confident': {
+          console.log(`Posting ${isPublicResponsesEnabled ? 'public' : 'internal [ENABLE_PUBLIC_RESPONSES is off]'} comment to ticket ${ticket_id}`);
+          await client.tickets.update(ticket_id, {
+            ticket: {
+              comment: {
+                body: response.text,
+                public: isPublicResponsesEnabled,
+                ...(author_id && { author_id }),
+              },
             },
-          },
-        } as CreateOrUpdateTicket);
+          } as CreateOrUpdateTicket);
+        }
+          break;
+        default:
+          console.log(`Adding low confidence note to ticket ${ticket_id}`);
+          await client.tickets.update(ticket_id, {
+            ticket: {
+              comment: {
+                body: `AI Agent had ${response.aiAnnotations.answerConfidence} confidence level in its answer`,
+                public: false,
+                ...(author_id && { author_id }),
+              },
+            },
+          } as CreateOrUpdateTicket);
+          break;
       }
     });
 

@@ -89,19 +89,24 @@ export const POST = async (req: Request) => {
       client.tickets.getComments(ticket_id),
     ]);
 
+    // Get user and their organization details
+    const requesterId = ticketResponse.result.requester_id;
+    const userDetailsResponse = await client.users.show(requesterId)
+
+    // Initialize properties for logging to Inkeep Analytics
     const messagesToLogToAnalytics: Messages[] = [];
     const ticketProperties = {
       ticketId: ticket_id,
       ticketTitle: ticketResponse.result.subject,
     };
-    let userProperties: UserProperties | null = null;
-
-    // Get user and their organization details
-    const requesterId = ticketResponse.result.requester_id;
-    const [userDetailsResponse, userIdentitiesResponse] = await Promise.all([
-      client.users.show(requesterId),
-      client.useridentities.list(requesterId),
-    ]);
+    const userProperties: UserProperties = {
+      userId: requesterId,
+      additionalProperties: {
+        name: userDetailsResponse.result.name,
+        email: userDetailsResponse.result.email,
+        role: userDetailsResponse.result.role,
+      },
+    };
 
     // If user belongs to an organization, fetch org details
     let orgDetails = null;
@@ -132,17 +137,6 @@ export const POST = async (req: Request) => {
         const author = authorCache.get(comment.author_id);
         if (!author) {
           return null;
-        }
-
-        if (!userProperties) {
-          userProperties = {
-            userId: author.id,
-            additionalProperties: {
-              name: author.name,
-              email: author.email,
-              role: author.role,
-            },
-          };
         }
 
         const attachmentUrls = comment.attachments
@@ -217,7 +211,6 @@ export const POST = async (req: Request) => {
             content: triageComment,
             role: 'assistant',
           }
-
           messagesToLogToAnalytics.push(assistantMessageForAnalytics);
 
           await logToInkeepAnalytics({
@@ -250,7 +243,6 @@ export const POST = async (req: Request) => {
             content: response.text,
             role: 'assistant',
           }
-
           messagesToLogToAnalytics.push(assistantMessageForAnalytics);
           break;
         }

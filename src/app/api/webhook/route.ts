@@ -8,7 +8,7 @@ import type { User } from 'node-zendesk/clients/core/users';
 import { encodeImageUrls, extractImageUrls, zendeskTicketToAiMessages } from '@/lib/zendeskConversations';
 import { aiTriageTicket, formatTriageComment } from '@/lib/ticket-routing/ai';
 import crypto from 'node:crypto';
-import type { Messages } from '@inkeep/inkeep-analytics/models/components';
+import type { Messages, UserProperties } from '@inkeep/inkeep-analytics/models/components';
 import { logToInkeepAnalytics } from '@/lib/analytics/logToInkeepAnalytics';
 
 // Timeout of the Serverless Function. Increase if adding multiple AI steps. Check your Vercel plan.
@@ -94,6 +94,7 @@ export const POST = async (req: Request) => {
       ticketId: ticket_id,
       ticketTitle: ticketResponse.result.subject,
     };
+    let userProperties: UserProperties | null = null;
 
     // Get user and their organization details
     const requesterId = ticketResponse.result.requester_id;
@@ -133,6 +134,17 @@ export const POST = async (req: Request) => {
           return null;
         }
 
+        if (!userProperties) {
+          userProperties = {
+            userId: author.id,
+            additionalProperties: {
+              name: author.name,
+              email: author.email,
+              role: author.role,
+            },
+          };
+        }
+
         const attachmentUrls = comment.attachments
           ?.filter((attachment: { content_type: string }) => attachment.content_type.startsWith('image/'))
           .map((attachment: { content_url: string }) => attachment.content_url) ?? [];
@@ -146,14 +158,6 @@ export const POST = async (req: Request) => {
         const userMessageForAnalytics: Messages = {
           content: comment.body,
           role: 'user',
-          userProperties: {
-            userId: author.id,
-            additionalProperties: {
-              name: author.name,
-              email: author.email,
-              role: author.role,
-            },
-          },
         }
         messagesToLogToAnalytics.push(userMessageForAnalytics);
 
@@ -212,9 +216,6 @@ export const POST = async (req: Request) => {
           const assistantMessageForAnalytics: Messages = {
             content: triageComment,
             role: 'assistant',
-            properties: {
-              public: false,
-            },
           }
 
           messagesToLogToAnalytics.push(assistantMessageForAnalytics);
@@ -222,6 +223,7 @@ export const POST = async (req: Request) => {
           await logToInkeepAnalytics({
             messagesToLogToAnalytics,
             properties: ticketProperties,
+            userProperties,
           });
 
           return;
@@ -247,9 +249,6 @@ export const POST = async (req: Request) => {
           const assistantMessageForAnalytics: Messages = {
             content: response.text,
             role: 'assistant',
-            properties: {
-              public: isPublicResponsesEnabled
-            },
           }
 
           messagesToLogToAnalytics.push(assistantMessageForAnalytics);
@@ -272,9 +271,6 @@ export const POST = async (req: Request) => {
           const assistantMessageForAnalytics: Messages = {
             content: confidenceNote,
             role: 'assistant',
-            properties: {
-              public: false
-            },
           }
 
           messagesToLogToAnalytics.push(assistantMessageForAnalytics);
@@ -286,6 +282,7 @@ export const POST = async (req: Request) => {
       await logToInkeepAnalytics({
         messagesToLogToAnalytics,
         properties: ticketProperties,
+        userProperties,
       });
     });
 

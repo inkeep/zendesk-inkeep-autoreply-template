@@ -149,11 +149,10 @@ export const POST = async (req: Request) => {
 
         const images = imageUrls.length > 0 ? await encodeImageUrls(imageUrls) : [];
 
-        const userMessageForAnalytics: Messages = {
+        messagesToLogToAnalytics.push({
           content: comment.body,
           role: 'user',
-        }
-        messagesToLogToAnalytics.push(userMessageForAnalytics);
+        });
 
         return {
           id: comment.id,
@@ -207,11 +206,10 @@ export const POST = async (req: Request) => {
             },
           } as CreateOrUpdateTicket);
 
-          const assistantMessageForAnalytics: Messages = {
+          messagesToLogToAnalytics.push({
             content: triageComment,
             role: 'assistant',
-          }
-          messagesToLogToAnalytics.push(assistantMessageForAnalytics);
+          });
 
           await logToInkeepAnalytics({
             messagesToLogToAnalytics,
@@ -239,11 +237,10 @@ export const POST = async (req: Request) => {
             },
           } as CreateOrUpdateTicket);
 
-          const assistantMessageForAnalytics: Messages = {
+          messagesToLogToAnalytics.push({
             content: response.text,
             role: 'assistant',
-          }
-          messagesToLogToAnalytics.push(assistantMessageForAnalytics);
+          });
           break;
         }
 
@@ -260,12 +257,10 @@ export const POST = async (req: Request) => {
             },
           } as CreateOrUpdateTicket);
 
-          const assistantMessageForAnalytics: Messages = {
+          messagesToLogToAnalytics.push({
             content: confidenceNote,
             role: 'assistant',
-          }
-
-          messagesToLogToAnalytics.push(assistantMessageForAnalytics);
+          });
 
           break;
         }

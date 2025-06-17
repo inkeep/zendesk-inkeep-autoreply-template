@@ -212,10 +212,6 @@ export const POST = async (req: Request) => {
           const assistantMessageForAnalytics: Messages = {
             content: triageComment,
             role: 'assistant',
-            userProperties: {
-              userId: author_id,
-              additionalProperties: {}, // This is required, even if empty
-            },
             properties: {
               public: false,
             },
@@ -251,10 +247,6 @@ export const POST = async (req: Request) => {
           const assistantMessageForAnalytics: Messages = {
             content: response.text,
             role: 'assistant',
-            userProperties: {
-              userId: author_id,
-              additionalProperties: {}, // This is required, even if empty
-            },
             properties: {
               public: isPublicResponsesEnabled
             },
@@ -280,10 +272,6 @@ export const POST = async (req: Request) => {
           const assistantMessageForAnalytics: Messages = {
             content: confidenceNote,
             role: 'assistant',
-            userProperties: {
-              userId: author_id,
-              additionalProperties: {}, // This is required, even if empty
-            },
             properties: {
               public: false
             },

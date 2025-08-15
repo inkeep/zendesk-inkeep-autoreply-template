@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.0.4",
+    "@inkeep/inkeep-analytics": "0.2.4-alpha.26",
     "@t3-oss/env-nextjs": "^0.11.1",
     "ai": "^4.0.3",
     "jimp": "^1.6.0",

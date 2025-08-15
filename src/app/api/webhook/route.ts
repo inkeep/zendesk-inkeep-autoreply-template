@@ -8,6 +8,8 @@ import type { User } from 'node-zendesk/clients/core/users';
 import { encodeImageUrls, extractImageUrls, zendeskTicketToAiMessages } from '@/lib/zendeskConversations';
 import { aiTriageTicket, formatTriageComment } from '@/lib/ticket-routing/ai';
 import crypto from 'node:crypto';
+import type { Messages, UserProperties } from '@inkeep/inkeep-analytics/models/components';
+import { logToInkeepAnalytics } from '@/lib/analytics/logToInkeepAnalytics';
 
 // Timeout of the Serverless Function. Increase if adding multiple AI steps. Check your Vercel plan.
 export const maxDuration = 60;
@@ -89,10 +91,22 @@ export const POST = async (req: Request) => {
 
     // Get user and their organization details
     const requesterId = ticketResponse.result.requester_id;
-    const [userDetailsResponse, userIdentitiesResponse] = await Promise.all([
-      client.users.show(requesterId),
-      client.useridentities.list(requesterId),
-    ]);
+    const userDetailsResponse = await client.users.show(requesterId)
+
+    // Initialize properties for logging to Inkeep Analytics
+    const messagesToLogToAnalytics: Messages[] = [];
+    const ticketProperties = {
+      ticketId: ticket_id,
+      ticketTitle: ticketResponse.result.subject,
+    };
+    const userProperties: UserProperties = {
+      userId: requesterId,
+      additionalProperties: {
+        name: userDetailsResponse.result.name,
+        email: userDetailsResponse.result.email,
+        role: userDetailsResponse.result.role,
+      },
+    };
 
     // If user belongs to an organization, fetch org details
     let orgDetails = null;
@@ -135,6 +149,11 @@ export const POST = async (req: Request) => {
 
         const images = imageUrls.length > 0 ? await encodeImageUrls(imageUrls) : [];
 
+        messagesToLogToAnalytics.push({
+          content: comment.body,
+          role: 'user',
+        });
+
         return {
           id: comment.id,
           received: comment.created_at,
@@ -174,15 +193,30 @@ export const POST = async (req: Request) => {
 
         if (aiTriageData.category === 'account_billing') {
           console.log(`Ticket ${ticket_id}: Identified as billing issue, adding internal note`);
+
+          const triageComment = formatTriageComment(aiTriageData);
+
           await client.tickets.update(ticket_id, {
             ticket: {
               comment: {
-                body: formatTriageComment(aiTriageData),
+                body: triageComment,
                 public: false, // only ever meant to be an internal note (not visible to the customer)
                 ...(author_id && { author_id }),
               },
             },
           } as CreateOrUpdateTicket);
+
+          messagesToLogToAnalytics.push({
+            content: triageComment,
+            role: 'assistant',
+          });
+
+          await logToInkeepAnalytics({
+            messagesToLogToAnalytics,
+            properties: ticketProperties,
+            userProperties,
+          });
+
           return;
         }
       }
@@ -202,21 +236,41 @@ export const POST = async (req: Request) => {
               },
             },
           } as CreateOrUpdateTicket);
-        }
+
+          messagesToLogToAnalytics.push({
+            content: response.text,
+            role: 'assistant',
+          });
           break;
-        default:
+        }
+
+        default: {
           console.log(`Adding low confidence note to ticket ${ticket_id}`);
+          const confidenceNote = `AI Agent had ${response.aiAnnotations.answerConfidence} confidence level in its answer`;
           await client.tickets.update(ticket_id, {
             ticket: {
               comment: {
-                body: `AI Agent had ${response.aiAnnotations.answerConfidence} confidence level in its answer`,
+                body: confidenceNote,
                 public: false,
                 ...(author_id && { author_id }),
               },
             },
           } as CreateOrUpdateTicket);
+
+          messagesToLogToAnalytics.push({
+            content: confidenceNote,
+            role: 'assistant',
+          });
+
           break;
+        }
       }
+
+      await logToInkeepAnalytics({
+        messagesToLogToAnalytics,
+        properties: ticketProperties,
+        userProperties,
+      });
     });
 
     return Response.json({

@@ -1,6 +1,6 @@
 # Zendesk AI Auto Responder
 
-This template repo contains a NextJS app as well as bash scripts that will help you configure your Zendesk workspace to use InKeep to auto-respond to new tickets using your InKeep project.
+This template repo contains a NextJS app as well as bash scripts that will help you configure your Zendesk workspace to use Inkeep to auto-respond to new tickets using your Inkeep project.
 
 ## Architecture Overview
 
@@ -11,7 +11,7 @@ graph LR
     A[Zendesk Ticket Activity] --> B[Zendesk Trigger]
     B --> C[Zendesk Webhook]
     C --> D[Vercel App]
-    D --> E[InKeep AI]
+    D --> E[Inkeep AI]
     E --> D
     D --> F[Update Ticket]
     F --> A
@@ -20,8 +20,8 @@ graph LR
 **How it works:**
 1. **Zendesk** detects new ticket activity and fires a trigger
 2. **Zendesk webhook** sends ticket data to your **Vercel app**
-3. **Vercel app** calls **InKeep** to generate an AI response
-4. **InKeep** returns the AI response to **Vercel**
+3. **Vercel app** calls **Inkeep** to generate an AI response
+4. **Inkeep** returns the AI response to **Vercel**
 5. **Vercel** posts the response back to **Zendesk** as a ticket comment
 
 ## Complete Setup Guide
@@ -56,7 +56,7 @@ cp .env.sample .env
 - `ZENDESK_SUBDOMAIN`: Your Zendesk subdomain (e.g., if your Zendesk URL is mycompany.zendesk.com, enter 'mycompany')
 - `ZENDESK_API_TOKEN`: Generate at [Zendesk API token docs](https://support.zendesk.com/hc/en-us/articles/4408889192858-Generating-a-new-API-token)
 - `ZENDESK_API_USER`: Email address of your Zendesk user
-- `AUTO_RESPONDER_INKEEP_API_KEY`: Your InKeep API key
+- `AUTO_RESPONDER_INKEEP_API_KEY`: Your Inkeep API key
 - `ZENDESK_WEBHOOK_SECRET`: A secret key for webhook security [docs](https://developer.zendesk.com/documentation/webhooks/verifying/)
 - `AI_PROCESSING_ENDPOINT`: **Your Vercel deployment URL + `/api/webhook`** (e.g., `https://your-app-name.vercel.app/api/webhook`)
 

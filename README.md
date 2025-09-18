@@ -64,31 +64,20 @@ cp .env.sample .env
 - `AI_AGENT_USER_ID`: The User ID you'd like the AI bot to have if leaving internal comments
 - `ENABLE_PUBLIC_RESPONSES`: Set to "true" to make AI responses visible to customers (defaults to internal responses only)
 
-### Step 4: Install Prerequisites
+### Step 3: Install Prerequisites
 
 **Install jq** (required for the setup script):
 - **macOS**: `brew install jq`
 - **Ubuntu/Debian**: `sudo apt-get install jq`
 - **Windows**: Download from [jq website](https://jqlang.github.io/jq/download/)
 
-### Step 5: Run Setup Script
+### Step 4 : Run Setup Script
 
 Run the setup script to create the Zendesk webhook and trigger:
 ```bash
 chmod +x ./webhook_setup/setup.sh
 ./webhook_setup/setup.sh
 ```
-
-### Step 6: Commit Your Changes
-
-Commit your `.env` file to your repository so you have the configuration saved:
-```bash
-git add .env
-git commit -m "Add environment configuration"
-git push
-```
-
-**Note:** The `.env` file contains sensitive information. Consider using environment variables in your deployment platform instead of committing secrets to your repository.
 
 ## Troubleshooting
 

@@ -68,7 +68,6 @@ cp .env.sample .env
 
 **Install jq** (required for the setup script):
 - **macOS**: `brew install jq`
-- **Ubuntu/Debian**: `sudo apt-get install jq`
 - **Windows**: Download from [jq website](https://jqlang.github.io/jq/download/)
 
 ### Step 4 : Run Setup Script

@@ -58,7 +58,7 @@ cp .env.sample .env
 
 **Optional variables:**
 - `AI_AGENT_USER_ID`: The User ID you'd like the AI bot to have if leaving internal comments
-- `ENABLE_PUBLIC_RESPONSES`: Set to `true` to make AI responses visible to customers (defaults to `false` where all responses are internal notes)
+- `ENABLE_PUBLIC_RESPONSES`: Set to `true` to make AI responses visible to customers (defaults to `false` where all responses are internal comments)
 
 ### Step 3: Install Prerequisites
 
@@ -111,4 +111,4 @@ To enable customer-facing responses:
 1. Set the environment variable: `ENABLE_PUBLIC_RESPONSES=true`
 2. Redeploy the application
 
-When `ENABLE_PUBLIC_RESPONSES` is not set or is set to any value other than "true", the AI Auto Responder will only create internal notes (not visible to end-users) when responding to tickets.
+When `ENABLE_PUBLIC_RESPONSES` is not set or is set to any value other than `true`, the AI Auto Responder will only create internal notes (not visible to end-users) when responding to tickets.

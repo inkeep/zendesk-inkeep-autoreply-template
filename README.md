@@ -30,8 +30,9 @@ Follow these steps in order to set up the Zendesk AI Auto Responder:
 
 ### Step 1: Fork and Deploy to Vercel
 
-1. **Fork this repository** to your GitHub account or organization
-2. **Deploy to Vercel** using the button below:
+
+1. **Deploy to Vercel** using the button below:
+
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Finkeep%2Fzendesk-inkeep-template&env=ZENDESK_SUBDOMAIN,ZENDESK_API_TOKEN,ZENDESK_API_USER,AUTO_RESPONDER_INKEEP_API_KEY&envDescription=API%20keys%20required%20for%20successful%20deployment&project-name=zendesk-inkeep-autoresponder&repository-name=zendesk-inkeep-autoresponder)
 
@@ -39,18 +40,12 @@ Follow these steps in order to set up the Zendesk AI Auto Responder:
 
 ### Step 2: Clone Locally and Configure Environment
 
-1. **Clone your forked repository** to your local machine:
-```bash
-git clone https://github.com/YOUR-USERNAME/zendesk-inkeep-autoreply-template.git
-cd zendesk-inkeep-autoreply-template
-```
-
-2. **Create environment file** by copying the sample:
+1. **Create environment file** by copying the sample:
 ```bash
 cp .env.sample .env
 ```
 
-3. **Edit `.env` file** with your actual values:
+2. **Edit `.env` file** with your actual values:
 
 **Required variables:**
 - `ZENDESK_SUBDOMAIN`: Your Zendesk subdomain (e.g., if your Zendesk URL is mycompany.zendesk.com, enter 'mycompany')

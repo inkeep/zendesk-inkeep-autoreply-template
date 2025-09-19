@@ -41,24 +41,24 @@ Follow these steps in order to set up the Zendesk AI Auto Responder:
 
 ### Step 2: Clone Locally and Configure Environment
 
-1. **Create environment file** by copying the sample:
+1. Create an environment file by copying the sample:
 ```bash
 cp .env.sample .env
 ```
 
-2. **Edit `.env` file** with your actual values:
+2. Edit the `.env` file with your actual values:
 
 **Required variables:**
 - `ZENDESK_SUBDOMAIN`: Your Zendesk subdomain (e.g., if your Zendesk URL is mycompany.zendesk.com, enter 'mycompany')
 - `ZENDESK_API_TOKEN`: Generate at [Zendesk API token docs](https://support.zendesk.com/hc/en-us/articles/4408889192858-Generating-a-new-API-token)
 - `ZENDESK_API_USER`: Email address of your Zendesk user
-- `AUTO_RESPONDER_INKEEP_API_KEY`: Your Inkeep API key
 - `ZENDESK_WEBHOOK_SECRET`: A secret key for webhook security [docs](https://developer.zendesk.com/documentation/webhooks/verifying/)
-- `AI_PROCESSING_ENDPOINT`: **Your Vercel deployment URL + `/api/webhook`** (e.g., `https://your-app-name.vercel.app/api/webhook`)
+- `AI_PROCESSING_ENDPOINT`: Your Vercel deployment URL + `/api/webhook` (e.g., `https://your-app-name.vercel.app/api/webhook`)
+- `AUTO_RESPONDER_INKEEP_API_KEY`: Your Inkeep API key (you must have an account at https://portal.inkeep.com)
 
 **Optional variables:**
 - `AI_AGENT_USER_ID`: The User ID you'd like the AI bot to have if leaving internal comments
-- `ENABLE_PUBLIC_RESPONSES`: Set to "true" to make AI responses visible to customers (defaults to internal responses only)
+- `ENABLE_PUBLIC_RESPONSES`: Set to `true` to make AI responses visible to customers (defaults to `false` where all responses are internal notes)
 
 ### Step 3: Install Prerequisites
 

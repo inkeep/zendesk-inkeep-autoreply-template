@@ -14,7 +14,7 @@ graph LR
     A[Zendesk Ticket Activity] --> B[Zendesk Trigger]
     B --> C[Zendesk Webhook]
     C --> D[Vercel App]
-    D --> E[Inkeep AI]
+    D --> E[Inkeep API]
     E --> D
     D --> F[Update Ticket]
     F --> A
@@ -22,10 +22,10 @@ graph LR
 
 **How it works:**
 1. **Zendesk** detects new ticket activity and fires a trigger
-2. **Zendesk webhook** sends ticket data to your **Vercel app**
-3. **Vercel app** calls **Inkeep** to generate an AI response
-4. **Inkeep** returns the AI response to **Vercel**
-5. **Vercel** posts the response back to **Zendesk** as a ticket comment
+2. **Zendesk webhook** sends ticket data to your **Vercel App**
+3. **Vercel app** calls the **Inkeep API** to generate an AI response
+4. **Inkeep API** returns the AI response to **Vercel**
+5. **Vercel App** posts the response back to **Zendesk** as a ticket comment
 
 ## Complete Setup Guide
 

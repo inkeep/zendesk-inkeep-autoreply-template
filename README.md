@@ -30,7 +30,9 @@ Follow these steps in order to set up the Zendesk AI Auto Responder:
 
 ### Step 1: Fork and Deploy to Vercel
 
+
 1. **Deploy to Vercel** using the button below:
+
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Finkeep%2Fzendesk-inkeep-template&env=ZENDESK_SUBDOMAIN,ZENDESK_API_TOKEN,ZENDESK_API_USER,AUTO_RESPONDER_INKEEP_API_KEY&envDescription=API%20keys%20required%20for%20successful%20deployment&project-name=zendesk-inkeep-autoresponder&repository-name=zendesk-inkeep-autoresponder)
 

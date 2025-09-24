@@ -149,31 +149,38 @@ export const POST = async (req: Request) => {
 
         const images = imageUrls.length > 0 ? await encodeImageUrls(imageUrls) : [];
 
-        messagesToLogToAnalytics.push({
-          content: comment.body,
-          role: 'user',
-        });
-
         return {
-          id: comment.id,
-          received: comment.created_at,
-          author: {
-            type: author.role === 'end-user' ? 'user' : 'business',
-            name: author.name,
-            email: author.email,
+          message: {
+            id: comment.id,
+            received: comment.created_at,
+            author: {
+              type: author.role === 'end-user' ? 'user' : 'business',
+              name: author.name,
+              email: author.email,
+            },
+            content: [{
+              type: 'text',
+              text: comment.body,
+            }, ...images],
+            source: {
+              type: 'zendesk',
+            },
+          } as ZendeskMessage,
+          analyticsMessage: {
+            content: comment.body,
+            role: 'user' as const,
           },
-          content: [{
-            type: 'text',
-            text: comment.body,
-          }, ...images],
-          source: {
-            type: 'zendesk',
-          },
-        } as ZendeskMessage;
+        };
       })
     );
 
-    const messages = messagesPromises.filter((message): message is ZendeskMessage => message !== null);
+    const validResults = messagesPromises.filter(result => result !== null);
+    const messages = validResults.map(result => result!.message);
+    
+    // Extract analytics messages from valid results
+    validResults.forEach(result => {
+      messagesToLogToAnalytics.push(result!.analyticsMessage);
+    });
 
     const metadata = {
       ...userMetadata,

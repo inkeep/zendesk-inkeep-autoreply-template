@@ -144,6 +144,19 @@ const context = `
 
 const customInstructions = ''; // Add custom instructions here. For best results, use XML format, similar to the other prompt parts.
 
+// XML prompts for structuring Zendesk ticket content
+export const xmlPrompts = {
+    attachmentsStart: `The following attachments contain information that provide context for answering the support ticket. Use this content as additional context.
+        <attachments>`,
+        
+    attachmentsEnd: `</attachments>`,
+  
+    zendeskTicketStart: `Answer the following Zendesk support ticket using any relevant context from the file attachments provided above between the <attachments> and </attachments> XML tags:
+        <ticket>`,
+
+    zendeskTicketEnd: `</ticket>`
+};
+
 // Create an array that puts together these prompt parts in logical order
 const systemPromptParts: string[] = [
   context,

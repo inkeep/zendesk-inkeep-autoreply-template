@@ -63,7 +63,7 @@ const answerLinkFormat = `
     </conditions>
     <action>
         <good>Keep using [^int] format as embedded footnote at the end of every sentence to justify your answer.</good>
-        <good>When displaying raw URLs in your answer, wrap them in angle brackets (e.g. <https://example.com>) to prevent them from merging with adjacent text or footnotes.</good>
+        <good>When displaying raw URLs in your answer, wrap them in angle brackets (e.g. <https://example.com>) to make them clickable and to prevent them from merging with adjacent text or footnotes.</good>
         <bad>Do not generically tell the user to "learn more by reading <title>". Instead, assume you CANOT embed links aside as footnotes to your sentences. Just focus on stating the key information.</bad>
     </action>
 </SupremeLaw>

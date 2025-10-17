@@ -194,8 +194,10 @@ export const POST = async (req: Request) => {
 
     after(async () => {
       console.log(`Processing ticket ${ticket_id} with AI triage`);
+      console.log(`AI_TRIAGE_ENABLED value: "${process.env.AI_TRIAGE_ENABLED}", type: ${typeof process.env.AI_TRIAGE_ENABLED}`);
 
       if ((process.env.AI_TRIAGE_ENABLED ?? false) === 'true') {
+        console.log(`AI_TRIAGE_ENABLED is 'true' - executing AI triage for ticket ${ticket_id}`);
         const aiTriageData = await aiTriageTicket(zendeskTicketToAiMessages(messages));
 
         if (aiTriageData.category === 'account_billing') {

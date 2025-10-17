@@ -57,30 +57,3 @@ export async function aiTriageTicket(serializedTicket: CoreMessage[]) {
 
   return object;
 }
-
-/* Formatting structured data for the ticket */
-export function formatTriageComment(labels: z.infer<typeof StructuredLabelsSchema>): string {
-  // Simple emoji mapping for categories
-  const categoryEmoji =
-    {
-      production_issue: '🚨',
-      account_billing: '💰',
-      feature_request: '✨',
-      other: '📌',
-    }[labels.category] ?? '📌';
-
-  // Build the comment sections
-  const sections = [
-    '🤖 AI Triage Summary',
-    '───────────────────',
-    `📋 Subject: ${labels.subject}`,
-    `${categoryEmoji} Category: ${labels.category.replace('_', ' ').toUpperCase()}`,
-    labels.invoiceId && `📄 Invoice ID: ${labels.invoiceId}`,
-    '',
-    '📝 Summary:',
-    labels.summary,
-    '───────────────────',
-  ].filter(Boolean); // Remove empty lines (from optional fields)
-
-  return sections.join('\n');
-}

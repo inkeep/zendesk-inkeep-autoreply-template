@@ -6,7 +6,7 @@ import type { CreateOrUpdateTicket } from 'node-zendesk/clients/core/tickets';
 import { unstable_after as after } from 'next/server';
 import type { User } from 'node-zendesk/clients/core/users';
 import { encodeImageUrls, extractImageUrls, zendeskTicketToAiMessages } from '@/lib/zendeskConversations';
-import { aiTriageTicket, formatTriageComment } from '@/lib/ticket-routing/ai';
+import { aiTriageTicket } from '@/lib/ticket-routing/ai';
 import crypto from 'node:crypto';
 import type { Messages, UserProperties } from '@inkeep/inkeep-analytics/models/components';
 import { logToInkeepAnalytics } from '@/lib/analytics/logToInkeepAnalytics';
@@ -194,40 +194,26 @@ export const POST = async (req: Request) => {
 
     after(async () => {
       console.log(`Processing ticket ${ticket_id} with AI triage`);
-      console.log(`AI_TRIAGE_ENABLED value: "${process.env.AI_TRIAGE_ENABLED}", type: ${typeof process.env.AI_TRIAGE_ENABLED}`);
 
       if ((process.env.AI_TRIAGE_ENABLED ?? false) === 'true') {
-        console.log(`AI_TRIAGE_ENABLED is 'true' - executing AI triage for ticket ${ticket_id}`);
         const aiTriageData = await aiTriageTicket(zendeskTicketToAiMessages(messages));
 
-        if (aiTriageData.category === 'account_billing') {
-          console.log(`Ticket ${ticket_id}: Identified as billing issue, adding internal note`);
+        await client.tickets.update(ticket_id, {
+          ticket: {
+            tags: [aiTriageData.category],
+          },
+        } as CreateOrUpdateTicket);
+        
+        messagesToLogToAnalytics.push({
+          content: `AI Triage: ${aiTriageData.category}`,
+          role: 'assistant',
+        });
 
-          const triageComment = formatTriageComment(aiTriageData);
-
-          await client.tickets.update(ticket_id, {
-            ticket: {
-              comment: {
-                body: triageComment,
-                public: false, // only ever meant to be an internal note (not visible to the customer)
-                ...(author_id && { author_id }),
-              },
-            },
-          } as CreateOrUpdateTicket);
-
-          messagesToLogToAnalytics.push({
-            content: triageComment,
-            role: 'assistant',
-          });
-
-          await logToInkeepAnalytics({
-            messagesToLogToAnalytics,
-            properties: ticketProperties,
-            userProperties,
-          });
-
-          return;
-        }
+        await logToInkeepAnalytics({
+          messagesToLogToAnalytics,
+          properties: ticketProperties,
+          userProperties,
+        });
       }
 
       const response = await generateQaModeResponse({ messages, metadata });

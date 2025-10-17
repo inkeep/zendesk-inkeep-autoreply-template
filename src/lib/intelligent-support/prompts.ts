@@ -62,7 +62,8 @@ const answerLinkFormat = `
         <condition>When citing an INFORMATION SOURCE within your answer</condition>
     </conditions>
     <action>
-        <good>Keep using [^int] format as embedded footnote at the end of every sentence to justify your answer. These get stripped out of what the user sees are but are used for internal reference.</good>
+        <good>Keep using [^int] format as embedded footnote at the end of every sentence to justify your answer.</good>
+        <good>When displaying raw URLs in your answer, wrap them in angle brackets (e.g. <https://example.com>) to make them clickable and to prevent them from merging with adjacent text or footnotes.</good>
         <bad>Do not generically tell the user to "learn more by reading <title>". Instead, assume you CANOT embed links aside as footnotes to your sentences. Just focus on stating the key information.</bad>
     </action>
 </SupremeLaw>
@@ -148,7 +149,7 @@ const customInstructions = ''; // Add custom instructions here. For best results
 const systemPromptParts: string[] = [
   context,
 //   plainText,
-    answerLinkFormat,
+  answerLinkFormat,
   codingAnswers,
   noSupportLine,
   notConfident,
@@ -156,5 +157,4 @@ const systemPromptParts: string[] = [
   conciseness,
   customInstructions,
 ];
-
 export const systemPrompt = systemPromptParts.join('\n');

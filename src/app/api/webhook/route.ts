@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { createClient } from 'node-zendesk';
 import { generateQaModeResponse } from '@/lib/intelligent-support/support';
+import { xmlPrompts } from '@/lib/intelligent-support/prompts';
 import type { ZendeskMessage } from '@/lib/zendeskConversations';
 import type { CreateOrUpdateTicket } from 'node-zendesk/clients/core/tickets';
 import { unstable_after as after } from 'next/server';
 import type { User } from 'node-zendesk/clients/core/users';
-import { encodeImageUrls, extractImageUrls, zendeskTicketToAiMessages } from '@/lib/zendeskConversations';
+import { encodeImageUrls, extractImageUrls, zendeskTicketToAiMessages, extractAndEncodeTextFiles } from '@/lib/zendeskConversations';
 import { aiTriageTicket, formatTriageComment } from '@/lib/ticket-routing/ai';
 import crypto from 'node:crypto';
 import type { Messages, UserProperties } from '@inkeep/inkeep-analytics/models/components';
@@ -143,11 +144,50 @@ export const POST = async (req: Request) => {
           ?.filter((attachment: { content_type: string }) => attachment.content_type.startsWith('image/'))
           .map((attachment: { content_url: string }) => attachment.content_url) ?? [];
 
+        // Add text file processing
+        const textFiles = comment.attachments?.length > 0 
+          ? await extractAndEncodeTextFiles(comment.attachments)
+          : [];
+
         const inlineImageUrls = extractImageUrls(comment.html_body);
 
         const imageUrls = [...attachmentUrls, ...inlineImageUrls];
 
         const images = imageUrls.length > 0 ? await encodeImageUrls(imageUrls) : [];
+
+        // Build Zendesk support ticket content array
+        const zendeskTicketContentParts = [];
+        const hasZendeskAttachments = images.length > 0 || textFiles.length > 0;
+
+        // Add attachment section only if attachments exist
+        if (hasZendeskAttachments) {
+          zendeskTicketContentParts.push({
+            type: 'text' as const,
+            text: xmlPrompts.attachmentsStart,
+          });
+
+          if (images.length > 0) {
+            zendeskTicketContentParts.push(...images);
+          }
+
+          if (textFiles.length > 0) {
+            zendeskTicketContentParts.push(...textFiles);
+          }
+
+          zendeskTicketContentParts.push({
+            type: 'text' as const,
+            text: xmlPrompts.attachmentsEnd,
+          });
+        }
+
+        const ticketContent = hasZendeskAttachments 
+          ? `\n\n${xmlPrompts.zendeskTicketStart}${comment.body}\n${xmlPrompts.zendeskTicketEnd}`
+          : comment.body;
+
+        zendeskTicketContentParts.push({
+          type: 'text' as const,
+          text: ticketContent,
+        });
 
         return {
           message: {
@@ -158,10 +198,7 @@ export const POST = async (req: Request) => {
               name: author.name,
               email: author.email,
             },
-            content: [{
-              type: 'text',
-              text: comment.body,
-            }, ...images],
+            content: zendeskTicketContentParts,
             source: {
               type: 'zendesk',
             },

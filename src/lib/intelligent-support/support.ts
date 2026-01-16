@@ -1,5 +1,5 @@
 import 'server-only';
-import { ProvideAIAnnotationsToolSchema, ProvideLinksToolSchema } from './schemas';
+import { ProvideAnswerConfidenceSchema, ProvideLinksToolSchema } from './schemas';
 
 import type { CoreMessage } from 'ai';
 import type { z } from 'zod';
@@ -40,8 +40,8 @@ export const generateQaModeResponse = async ({
       provideRecordsConsidered: {
         parameters: ProvideRecordsConsideredToolSchema,
       },
-      provideAIAnnotations: {
-        parameters: ProvideAIAnnotationsToolSchema,
+      provideAnswerConfidence: {
+        parameters: ProvideAnswerConfidenceSchema,
       },
       provideLinks: {
         parameters: ProvideLinksToolSchema,
@@ -50,8 +50,8 @@ export const generateQaModeResponse = async ({
     toolChoice: 'auto',
   });
 
-  const aiAnnotations = toolCalls.find(toolCall => toolCall.toolName === 'provideAIAnnotations')?.args
-    .aiAnnotations as z.infer<typeof ProvideAIAnnotationsToolSchema>['aiAnnotations'];
+  const aiAnnotations = toolCalls.find(toolCall => toolCall.toolName === 'provideAnswerConfidence')?.args
+    .aiAnnotations as z.infer<typeof ProvideAnswerConfidenceSchema>['aiAnnotations'];
   const recordsConsidered = toolCalls.find(toolCall => toolCall.toolName === 'provideRecordsConsidered')?.args
     .recordsConsidered as z.infer<typeof ProvideRecordsConsideredToolSchema>['recordsConsidered'];
   const links = toolCalls.find(toolCall => toolCall.toolName === 'provideLinks')?.args.links as z.infer<

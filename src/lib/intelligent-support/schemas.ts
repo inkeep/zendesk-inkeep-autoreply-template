@@ -83,7 +83,7 @@ const AIAnnotationsToolSchema = z
   })
   .passthrough();
 
-export const ProvideAIAnnotationsToolSchema = z.object({
+export const ProvideAnswerConfidenceSchema = z.object({
   aiAnnotations: AIAnnotationsToolSchema,
 });
 

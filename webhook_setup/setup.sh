@@ -1,10 +1,16 @@
 #!/bin/bash
 
 # Constants
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 WEBHOOK_NAME="Inkeep AI Response Webhook"
 TRIGGER_NAME="Inkeep Send New Ticket to AI Processing"
-RESOURCES_FILE="../.zendesk-resources"
-ENV_FILE="../.env"
+RESOURCES_FILE="$SCRIPT_DIR/../.zendesk-resources"
+ENV_FILE="$SCRIPT_DIR/../.env"
+webhook_response=""
+response=""
+
+# shellcheck source=webhook_setup/auth.sh
+source "$SCRIPT_DIR/auth.sh"
 
 echo "Starting Zendesk AutoResponder setup script..."
 echo "This script will set up the following resources in your Zendesk account:"
@@ -23,7 +29,7 @@ echo "- Detect new support tickets"
 echo "- Send ticket details to the AI processing endpoint"
 echo "- Generate and post AI responses back to tickets"
 echo ""
-read -p "Press Enter to continue or any other key to exit..." key
+read -r -p "Press Enter to continue or any other key to exit..." key
 
 if [[ $key != "" ]]; then
     echo "Setup cancelled"
@@ -38,25 +44,33 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 echo "=== Loading environment variables from .env file ==="
+# shellcheck disable=SC1090
 source "$ENV_FILE"
 
 echo "=== Validating required environment variables ==="
-if [ -z "$ZENDESK_API_USER" ] || [ -z "$ZENDESK_API_TOKEN" ] || [ -z "$ZENDESK_SUBDOMAIN" ] || [ -z "$AI_PROCESSING_ENDPOINT" ]; then
+if [ -z "$ZENDESK_OAUTH_CLIENT_ID" ] || [ -z "$ZENDESK_OAUTH_CLIENT_SECRET" ] || [ -z "$ZENDESK_SUBDOMAIN" ] || [ -z "$AI_PROCESSING_ENDPOINT" ]; then
     echo "Error: The following required environment variables must be set in .env file:"
-    echo "  - ZENDESK_API_USER: $ZENDESK_API_USER"
-    echo "  - ZENDESK_API_TOKEN: $ZENDESK_API_TOKEN" 
+    echo "  - ZENDESK_OAUTH_CLIENT_ID"
+    echo "  - ZENDESK_OAUTH_CLIENT_SECRET"
     echo "  - ZENDESK_SUBDOMAIN: $ZENDESK_SUBDOMAIN"
     echo "  - AI_PROCESSING_ENDPOINT: $AI_PROCESSING_ENDPOINT"
+    exit 1
+fi
+
+if ! zendesk_initialize_auth "webhooks:read webhooks:write triggers:read triggers:write"; then
     exit 1
 fi
 
 echo "=== Starting webhook setup process ==="
 if [ -n "$AI_RESPONDER_WEBHOOK_ID" ]; then
     echo "=== Verifying existing webhook ==="
-    webhook_response=$(curl -s -u "$ZENDESK_API_USER/token:$ZENDESK_API_TOKEN" \
-      -X GET "https://$ZENDESK_SUBDOMAIN.zendesk.com/api/v2/webhooks/$AI_RESPONDER_WEBHOOK_ID.json")
+    if ! zendesk_request webhook_response \
+      -X GET "https://$ZENDESK_SUBDOMAIN.zendesk.com/api/v2/webhooks/$AI_RESPONDER_WEBHOOK_ID.json"; then
+        echo "Error: Failed to contact Zendesk while verifying the webhook"
+        exit 1
+    fi
     
-    if [[ "$webhook_response" == *"\"error\""* ]]; then
+    if [[ ! "$ZENDESK_HTTP_STATUS" =~ ^2[0-9][0-9]$ ]] || [[ "$webhook_response" == *"\"error\""* ]]; then
         echo "Error: Provided webhook ID does not exist"
         exit 1
     fi
@@ -77,12 +91,15 @@ else
 EOF
 )
 
-    webhook_response=$(curl -s -u "$ZENDESK_API_USER/token:$ZENDESK_API_TOKEN" \
+    if ! zendesk_request webhook_response \
       -X POST "https://$ZENDESK_SUBDOMAIN.zendesk.com/api/v2/webhooks" \
       -H "Content-Type: application/json" \
-      -d "$webhook_data")
+      -d "$webhook_data"; then
+        echo "Error: Failed to contact Zendesk while creating the webhook"
+        exit 1
+    fi
       
-    if [[ "$webhook_response" == *"\"error\""* ]]; then
+    if [[ ! "$ZENDESK_HTTP_STATUS" =~ ^2[0-9][0-9]$ ]] || [[ "$webhook_response" == *"\"error\""* ]]; then
         echo "Error creating webhook:"
         echo "$webhook_response"
         exit 1
@@ -142,12 +159,15 @@ EOF
 )
 
 echo "=== Creating Zendesk trigger ==="
-response=$(curl -s -u "$ZENDESK_API_USER/token:$ZENDESK_API_TOKEN" \
+if ! zendesk_request response \
   -X POST "https://$ZENDESK_SUBDOMAIN.zendesk.com/api/v2/triggers.json" \
   -H "Content-Type: application/json" \
-  -d "$trigger_data")
+  -d "$trigger_data"; then
+    echo "Error: Failed to contact Zendesk while creating the trigger"
+    exit 1
+fi
 
-if [[ "$response" == *"\"id\""* ]]; then
+if [[ "$ZENDESK_HTTP_STATUS" =~ ^2[0-9][0-9]$ ]] && [[ "$response" == *"\"id\""* ]]; then
     trigger_id=$(echo "$response" | grep -o '"id":[0-9]*' | cut -d':' -f2)
     echo "Trigger created successfully with ID: $trigger_id"
     

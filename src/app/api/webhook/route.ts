@@ -9,7 +9,7 @@ import { aiTriageTicket, formatTriageComment } from '@/lib/ticket-routing/ai';
 import crypto from 'node:crypto';
 import type { Messages, UserProperties } from '@inkeep/inkeep-analytics/models/components';
 import { logToInkeepAnalytics } from '@/lib/analytics/logToInkeepAnalytics';
-import { createZendeskClientProvider } from '@/lib/zendeskClient';
+import { createZendeskClient } from '@/lib/zendeskClient';
 
 // Timeout of the Serverless Function. Increase if adding multiple AI steps. Check your Vercel plan.
 export const maxDuration = 60;
@@ -76,17 +76,17 @@ export const POST = async (req: Request) => {
   const { ticket_id } = result.data;
 
   try {
-    const zendesk = await createZendeskClientProvider();
+    const client = createZendeskClient();
 
     // Fetch ticket details and comments
     const [ticketResponse, commentsResponse] = await Promise.all([
-      zendesk.run(client => client.tickets.show(ticket_id)),
-      zendesk.run(client => client.tickets.getComments(ticket_id)),
+      client.tickets.show(ticket_id),
+      client.tickets.getComments(ticket_id),
     ]);
 
     // Get user and their organization details
     const requesterId = ticketResponse.result.requester_id;
-    const userDetailsResponse = await zendesk.run(client => client.users.show(requesterId));
+    const userDetailsResponse = await client.users.show(requesterId)
 
     // Initialize properties for logging to Inkeep Analytics
     const messagesToLogToAnalytics: Messages[] = [];
@@ -105,11 +105,8 @@ export const POST = async (req: Request) => {
 
     // If user belongs to an organization, fetch org details
     let orgDetails = null;
-    const organizationId = userDetailsResponse.result.organization_id;
-    if (organizationId) {
-      orgDetails = (await zendesk.run(client =>
-        client.organizations.show(organizationId),
-      )) as any;
+    if (userDetailsResponse.result.organization_id) {
+      orgDetails = (await client.organizations.show(userDetailsResponse.result.organization_id)) as any;
     }
 
     // Access user and org metadata
@@ -125,7 +122,7 @@ export const POST = async (req: Request) => {
     // Fetch all unique authors in parallel
     await Promise.all(
       authorIds.map(async authorId => {
-        const authorResponse = await zendesk.run(client => client.users.show(authorId));
+        const authorResponse = await client.users.show(authorId);
         authorCache.set(authorId, authorResponse.result);
       }),
     );
@@ -201,17 +198,15 @@ export const POST = async (req: Request) => {
 
           const triageComment = formatTriageComment(aiTriageData);
 
-          await zendesk.run(client =>
-            client.tickets.update(ticket_id, {
-              ticket: {
-                comment: {
-                  body: triageComment,
-                  public: false, // only ever meant to be an internal note (not visible to the customer)
-                  ...(author_id && { author_id }),
-                },
+          await client.tickets.update(ticket_id, {
+            ticket: {
+              comment: {
+                body: triageComment,
+                public: false, // only ever meant to be an internal note (not visible to the customer)
+                ...(author_id && { author_id }),
               },
-            } as CreateOrUpdateTicket),
-          );
+            },
+          } as CreateOrUpdateTicket);
 
           messagesToLogToAnalytics.push({
             content: triageComment,
@@ -234,17 +229,15 @@ export const POST = async (req: Request) => {
       switch (response.aiAnnotations.answerConfidence) {
         case 'very_confident': {
           console.log(`Posting ${isPublicResponsesEnabled ? 'public' : 'internal [ENABLE_PUBLIC_RESPONSES is off]'} comment to ticket ${ticket_id}`);
-          await zendesk.run(client =>
-            client.tickets.update(ticket_id, {
-              ticket: {
-                comment: {
-                  body: response.text,
-                  public: isPublicResponsesEnabled,
-                  ...(author_id && { author_id }),
-                },
+          await client.tickets.update(ticket_id, {
+            ticket: {
+              comment: {
+                body: response.text,
+                public: isPublicResponsesEnabled,
+                ...(author_id && { author_id }),
               },
-            } as CreateOrUpdateTicket),
-          );
+            },
+          } as CreateOrUpdateTicket);
 
           messagesToLogToAnalytics.push({
             content: response.text,
@@ -256,17 +249,15 @@ export const POST = async (req: Request) => {
         default: {
           console.log(`Adding low confidence note to ticket ${ticket_id}`);
           const confidenceNote = `AI Agent had ${response.aiAnnotations.answerConfidence} confidence level in its answer`;
-          await zendesk.run(client =>
-            client.tickets.update(ticket_id, {
-              ticket: {
-                comment: {
-                  body: confidenceNote,
-                  public: false,
-                  ...(author_id && { author_id }),
-                },
+          await client.tickets.update(ticket_id, {
+            ticket: {
+              comment: {
+                body: confidenceNote,
+                public: false,
+                ...(author_id && { author_id }),
               },
-            } as CreateOrUpdateTicket),
-          );
+            },
+          } as CreateOrUpdateTicket);
 
           messagesToLogToAnalytics.push({
             content: confidenceNote,

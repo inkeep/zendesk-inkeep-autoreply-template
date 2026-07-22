@@ -111,11 +111,7 @@ async function requestOAuthAccessToken(env: ZendeskEnv): Promise<string> {
   throw new Error('Zendesk OAuth token acquisition failed');
 }
 
-export interface ZendeskClientProvider {
-  run<T>(operation: (client: ZendeskClient) => Promise<T>): Promise<T>;
-}
-
-export async function createZendeskClientProvider(): Promise<ZendeskClientProvider> {
+export function createZendeskClient(): ZendeskClient {
   const env = getZendeskEnv();
   const legacyClient = createLegacyClient(env);
   let hasLoggedFallback = false;
@@ -135,34 +131,59 @@ export async function createZendeskClientProvider(): Promise<ZendeskClientProvid
     return operation(legacyClient);
   };
 
-  return {
-    async run<T>(operation: (zendeskClient: ZendeskClient) => Promise<T>): Promise<T> {
-      let accessToken: string;
+  const run = async <T>(operation: (client: ZendeskClient) => Promise<T>): Promise<T> => {
+    let accessToken: string;
 
-      try {
-        accessToken = await requestOAuthAccessToken(env);
-      } catch (error) {
-        if (!legacyClient) {
-          throw error;
-        }
-        return runWithLegacyFallback('token acquisition failed', operation);
-      }
-
-      const oauthClient = createClient({
-        token: accessToken,
-        oauth: true,
-        subdomain: env.ZENDESK_SUBDOMAIN,
-        throwOriginalException: true,
-      });
-
-      try {
-        return await operation(oauthClient);
-      } catch (error) {
-        if (isOAuthAuthorizationError(error) && legacyClient) {
-          return runWithLegacyFallback('request was rejected', operation);
-        }
+    try {
+      accessToken = await requestOAuthAccessToken(env);
+    } catch (error) {
+      if (!legacyClient) {
         throw error;
       }
-    },
+      return runWithLegacyFallback('token acquisition failed', operation);
+    }
+
+    const oauthClient = createClient({
+      token: accessToken,
+      oauth: true,
+      subdomain: env.ZENDESK_SUBDOMAIN,
+      throwOriginalException: true,
+    });
+
+    try {
+      return await operation(oauthClient);
+    } catch (error) {
+      if (isOAuthAuthorizationError(error) && legacyClient) {
+        return runWithLegacyFallback('request was rejected', operation);
+      }
+      throw error;
+    }
   };
+  const resources = new Map<PropertyKey, object>();
+
+  // Preserve node-zendesk's normal client.* API while authenticating each operation.
+  return new Proxy({} as ZendeskClient, {
+    get(_target, resourceName) {
+      const existingResource = resources.get(resourceName);
+      if (existingResource) {
+        return existingResource;
+      }
+
+      const resource = new Proxy({}, {
+        get(_resourceTarget, methodName) {
+          return (...args: unknown[]) =>
+            run(client => {
+              const clientResource = Reflect.get(client, resourceName) as object;
+              const method = Reflect.get(clientResource, methodName) as (
+                ...values: unknown[]
+              ) => Promise<unknown>;
+              return Reflect.apply(method, clientResource, args);
+            });
+        },
+      });
+
+      resources.set(resourceName, resource);
+      return resource;
+    },
+  });
 }

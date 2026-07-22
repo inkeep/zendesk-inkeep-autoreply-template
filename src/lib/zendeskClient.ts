@@ -9,7 +9,6 @@ const TOKEN_RETRY_BASE_DELAY_MS = 250;
 
 const tokenResponseSchema = z.object({
   access_token: z.string().min(1),
-  expires_in: z.number().positive(),
 });
 
 type ZendeskClient = ReturnType<typeof createClient>;
@@ -27,163 +26,65 @@ function createLegacyClient(env: ZendeskEnv): ZendeskClient | undefined {
   });
 }
 
-function getStatusCode(error: unknown): number | undefined {
-  if (!error || typeof error !== 'object') {
-    return undefined;
-  }
-
-  const value = error as {
-    status?: unknown;
-    statusCode?: unknown;
-    response?: { status?: unknown; statusCode?: unknown };
-  };
-  const candidates = [
-    value.status,
-    value.statusCode,
-    value.response?.status,
-    value.response?.statusCode,
-  ];
-
-  return candidates.find(candidate => typeof candidate === 'number') as number | undefined;
-}
-
-function isOAuthAuthorizationError(error: unknown): boolean {
-  const statusCode = getStatusCode(error);
-  if (statusCode === 401 || statusCode === 403) {
-    return true;
-  }
-
-  return error instanceof Error && /\b(?:401|403)\b/.test(error.message);
-}
-
 function delay(milliseconds: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, milliseconds));
 }
 
-async function requestOAuthAccessTokenOnce(env: ZendeskEnv): Promise<string> {
+async function requestOAuthAccessToken(env: ZendeskEnv): Promise<string> {
   const body = new URLSearchParams({
     grant_type: 'client_credentials',
     client_id: env.ZENDESK_OAUTH_CLIENT_ID,
     client_secret: env.ZENDESK_OAUTH_CLIENT_SECRET,
     scope: ZENDESK_RUNTIME_SCOPE,
   });
-  const response = await fetch(`https://${env.ZENDESK_SUBDOMAIN}.zendesk.com/oauth/tokens`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body,
-  });
-
-  if (!response.ok) {
-    const error = new Error(`Zendesk OAuth token request failed with status ${response.status}`);
-    Object.assign(error, { status: response.status });
-    throw error;
-  }
-
-  const result = tokenResponseSchema.safeParse(await response.json());
-  if (!result.success) {
-    throw new Error('Zendesk OAuth token response was invalid');
-  }
-
-  return result.data.access_token;
-}
-
-async function requestOAuthAccessToken(env: ZendeskEnv): Promise<string> {
   for (let attempt = 0; attempt <= MAX_TOKEN_RETRIES; attempt += 1) {
-    try {
-      return await requestOAuthAccessTokenOnce(env);
-    } catch (error) {
-      const status = getStatusCode(error);
-      const isServerError = status !== undefined && status >= 500 && status < 600;
-      if (!isServerError || attempt === MAX_TOKEN_RETRIES) {
-        throw error;
-      }
+    const response = await fetch(`https://${env.ZENDESK_SUBDOMAIN}.zendesk.com/oauth/tokens`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body,
+    });
 
-      const retryNumber = attempt + 1;
-      console.warn(
-        `Zendesk OAuth token acquisition failed; retrying (${retryNumber}/${MAX_TOKEN_RETRIES})`,
-      );
-      await delay(TOKEN_RETRY_BASE_DELAY_MS * 2 ** attempt);
+    if (response.ok) {
+      const result = tokenResponseSchema.safeParse(await response.json());
+      if (!result.success) {
+        throw new Error('Zendesk OAuth token response was invalid');
+      }
+      return result.data.access_token;
     }
+
+    const isServerError = response.status >= 500 && response.status < 600;
+    if (!isServerError || attempt === MAX_TOKEN_RETRIES) {
+      throw new Error(`Zendesk OAuth token request failed with status ${response.status}`);
+    }
+
+    console.warn(
+      `Zendesk OAuth token acquisition failed; retrying (${attempt + 1}/${MAX_TOKEN_RETRIES})`,
+    );
+    await delay(TOKEN_RETRY_BASE_DELAY_MS * 2 ** attempt);
   }
 
   throw new Error('Zendesk OAuth token acquisition failed');
 }
 
-export function createZendeskClient(): ZendeskClient {
+export async function createZendeskClient(): Promise<ZendeskClient> {
   const env = getZendeskEnv();
-  const legacyClient = createLegacyClient(env);
-  let hasLoggedFallback = false;
-
-  const runWithLegacyFallback = async <T>(
-    reason: string,
-    operation: (client: ZendeskClient) => Promise<T>,
-  ): Promise<T> => {
-    if (!legacyClient) {
-      throw new Error(`Zendesk OAuth ${reason}, and no legacy fallback is configured`);
-    }
-
-    if (!hasLoggedFallback) {
-      console.warn(`Zendesk OAuth ${reason}; using deprecated API-token fallback`);
-      hasLoggedFallback = true;
-    }
-    return operation(legacyClient);
-  };
-
-  const run = async <T>(operation: (client: ZendeskClient) => Promise<T>): Promise<T> => {
-    let accessToken: string;
-
-    try {
-      accessToken = await requestOAuthAccessToken(env);
-    } catch (error) {
-      if (!legacyClient) {
-        throw error;
-      }
-      return runWithLegacyFallback('token acquisition failed', operation);
-    }
-
-    const oauthClient = createClient({
+  try {
+    const accessToken = await requestOAuthAccessToken(env);
+    return createClient({
       token: accessToken,
       oauth: true,
       subdomain: env.ZENDESK_SUBDOMAIN,
       throwOriginalException: true,
     });
-
-    try {
-      return await operation(oauthClient);
-    } catch (error) {
-      if (isOAuthAuthorizationError(error) && legacyClient) {
-        return runWithLegacyFallback('request was rejected', operation);
-      }
+  } catch (error) {
+    const legacyClient = createLegacyClient(env);
+    if (!legacyClient) {
       throw error;
     }
-  };
-  const resources = new Map<PropertyKey, object>();
 
-  // Preserve node-zendesk's normal client.* API while authenticating each operation.
-  return new Proxy({} as ZendeskClient, {
-    get(_target, resourceName) {
-      const existingResource = resources.get(resourceName);
-      if (existingResource) {
-        return existingResource;
-      }
-
-      const resource = new Proxy({}, {
-        get(_resourceTarget, methodName) {
-          return (...args: unknown[]) =>
-            run(client => {
-              const clientResource = Reflect.get(client, resourceName) as object;
-              const method = Reflect.get(clientResource, methodName) as (
-                ...values: unknown[]
-              ) => Promise<unknown>;
-              return Reflect.apply(method, clientResource, args);
-            });
-        },
-      });
-
-      resources.set(resourceName, resource);
-      return resource;
-    },
-  });
+    console.warn('Zendesk OAuth token acquisition failed; using deprecated API-token fallback');
+    return legacyClient;
+  }
 }

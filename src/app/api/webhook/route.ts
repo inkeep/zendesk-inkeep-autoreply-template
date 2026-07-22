@@ -76,7 +76,7 @@ export const POST = async (req: Request) => {
   const { ticket_id } = result.data;
 
   try {
-    const client = createZendeskClient();
+    const client = await createZendeskClient();
 
     // Fetch ticket details and comments
     const [ticketResponse, commentsResponse] = await Promise.all([

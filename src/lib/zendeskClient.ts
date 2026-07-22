@@ -4,6 +4,8 @@ import { getZendeskEnv, type ZendeskEnv } from '@/env';
 
 const ZENDESK_RUNTIME_SCOPE =
   'tickets:read tickets:write users:read organizations:read';
+const MAX_TOKEN_RETRIES = 3;
+const TOKEN_RETRY_BASE_DELAY_MS = 250;
 
 const tokenResponseSchema = z.object({
   access_token: z.string().min(1),
@@ -54,7 +56,11 @@ function isOAuthAuthorizationError(error: unknown): boolean {
   return error instanceof Error && /\b(?:401|403)\b/.test(error.message);
 }
 
-async function requestOAuthAccessToken(env: ZendeskEnv): Promise<string> {
+function delay(milliseconds: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+async function requestOAuthAccessTokenOnce(env: ZendeskEnv): Promise<string> {
   const body = new URLSearchParams({
     grant_type: 'client_credentials',
     client_id: env.ZENDESK_OAUTH_CLIENT_ID,
@@ -70,7 +76,9 @@ async function requestOAuthAccessToken(env: ZendeskEnv): Promise<string> {
   });
 
   if (!response.ok) {
-    throw new Error(`Zendesk OAuth token request failed with status ${response.status}`);
+    const error = new Error(`Zendesk OAuth token request failed with status ${response.status}`);
+    Object.assign(error, { status: response.status });
+    throw error;
   }
 
   const result = tokenResponseSchema.safeParse(await response.json());
@@ -79,6 +87,28 @@ async function requestOAuthAccessToken(env: ZendeskEnv): Promise<string> {
   }
 
   return result.data.access_token;
+}
+
+async function requestOAuthAccessToken(env: ZendeskEnv): Promise<string> {
+  for (let attempt = 0; attempt <= MAX_TOKEN_RETRIES; attempt += 1) {
+    try {
+      return await requestOAuthAccessTokenOnce(env);
+    } catch (error) {
+      const status = getStatusCode(error);
+      const isServerError = status !== undefined && status >= 500 && status < 600;
+      if (!isServerError || attempt === MAX_TOKEN_RETRIES) {
+        throw error;
+      }
+
+      const retryNumber = attempt + 1;
+      console.warn(
+        `Zendesk OAuth token acquisition failed; retrying (${retryNumber}/${MAX_TOKEN_RETRIES})`,
+      );
+      await delay(TOKEN_RETRY_BASE_DELAY_MS * 2 ** attempt);
+    }
+  }
+
+  throw new Error('Zendesk OAuth token acquisition failed');
 }
 
 export interface ZendeskClientProvider {

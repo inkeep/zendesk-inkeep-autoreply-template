@@ -1,5 +1,13 @@
 #!/bin/bash
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ENV_FILE="$SCRIPT_DIR/../.env"
+RESOURCES_FILE="$SCRIPT_DIR/../.zendesk-resources"
+response=""
+
+# shellcheck source=webhook_setup/auth.sh
+source "$SCRIPT_DIR/auth.sh"
+
 echo "WARNING: This script will delete Zendesk resources from your instance."
 echo "Resources that will be deleted:"
 echo "- Webhook for Inkeep AI Response"
@@ -16,21 +24,26 @@ then
     exit 1
 fi
 # Load environment variables
-source ../.env
+if [ ! -f "$ENV_FILE" ]; then
+    echo "Error: .env file not found"
+    exit 1
+fi
+# shellcheck disable=SC1090
+source "$ENV_FILE"
 
 # Check if .zendesk-resources exists
-if [ ! -f "../.zendesk-resources" ]; then
+if [ ! -f "$RESOURCES_FILE" ]; then
     echo "Error: .zendesk-resources file not found"
     exit 1
 fi
 
 # Validate required environment variables
 missing_vars=()
-if [ -z "$ZENDESK_API_USER" ]; then
-    missing_vars+=("ZENDESK_API_USER")
+if [ -z "$ZENDESK_OAUTH_CLIENT_ID" ]; then
+    missing_vars+=("ZENDESK_OAUTH_CLIENT_ID")
 fi
-if [ -z "$ZENDESK_API_TOKEN" ]; then
-    missing_vars+=("ZENDESK_API_TOKEN")
+if [ -z "$ZENDESK_OAUTH_CLIENT_SECRET" ]; then
+    missing_vars+=("ZENDESK_OAUTH_CLIENT_SECRET")
 fi
 if [ -z "$ZENDESK_SUBDOMAIN" ]; then
     missing_vars+=("ZENDESK_SUBDOMAIN")
@@ -43,6 +56,10 @@ if [ ${#missing_vars[@]} -ne 0 ]; then
     exit 1
 fi
 
+if ! zendesk_initialize_auth "webhooks:write triggers:write"; then
+    exit 1
+fi
+
 # Read and process each line from .zendesk-resources
 while IFS='=' read -r key value; do
     # Skip empty lines
@@ -51,23 +68,29 @@ while IFS='=' read -r key value; do
     case "$key" in
         "WEBHOOK_ID")
             echo "Deleting webhook with ID: $value"
-            response=$(curl -s -u "$ZENDESK_API_USER/token:$ZENDESK_API_TOKEN" \
-                -X DELETE "https://$ZENDESK_SUBDOMAIN.zendesk.com/api/v2/webhooks/$value")
-            if [ -z "$response" ]; then
+            if ! zendesk_request response \
+                -X DELETE "https://$ZENDESK_SUBDOMAIN.zendesk.com/api/v2/webhooks/$value"; then
+                echo "Error contacting Zendesk while deleting webhook"
+                continue
+            fi
+            if [[ "$ZENDESK_HTTP_STATUS" =~ ^2[0-9][0-9]$ ]]; then
                 echo "Successfully deleted webhook"
             else
-                echo "Error deleting webhook: $response"
+                echo "Error deleting webhook (status $ZENDESK_HTTP_STATUS): $response"
             fi
             ;;
             
         "TRIGGER_ID")
             echo "Deleting trigger with ID: $value"
-            response=$(curl -s -u "$ZENDESK_API_USER/token:$ZENDESK_API_TOKEN" \
-                -X DELETE "https://$ZENDESK_SUBDOMAIN.zendesk.com/api/v2/triggers/$value.json")
-            if [ -z "$response" ]; then
+            if ! zendesk_request response \
+                -X DELETE "https://$ZENDESK_SUBDOMAIN.zendesk.com/api/v2/triggers/$value.json"; then
+                echo "Error contacting Zendesk while deleting trigger"
+                continue
+            fi
+            if [[ "$ZENDESK_HTTP_STATUS" =~ ^2[0-9][0-9]$ ]]; then
                 echo "Successfully deleted trigger"
             else
-                echo "Error deleting trigger: $response"
+                echo "Error deleting trigger (status $ZENDESK_HTTP_STATUS): $response"
             fi
             ;;
             
@@ -75,9 +98,8 @@ while IFS='=' read -r key value; do
             echo "Unknown resource type: $key"
             ;;
     esac
-done < "../.zendesk-resources"
+done < "$RESOURCES_FILE"
 
 # Remove the resources file after cleanup
-rm "../.zendesk-resources"
+rm "$RESOURCES_FILE"
 echo "Cleanup completed"
-

@@ -1,17 +1,26 @@
 #!/bin/bash
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ENV_FILE="$SCRIPT_DIR/../.env"
+webhooks_response=""
+triggers_response=""
+
+# shellcheck source=webhook_setup/auth.sh
+source "$SCRIPT_DIR/auth.sh"
+
 # Check if .env file exists in parent directory
-if [ ! -f "../.env" ]; then
+if [ ! -f "$ENV_FILE" ]; then
     echo "Error: .env file not found in parent directory"
     exit 1
 fi
 
 # Load environment variables from .env file in parent directory
-source "../.env"
+# shellcheck disable=SC1090
+source "$ENV_FILE"
 
 # Check if required variables are set
-if [ -z "$ZENDESK_API_USER" ] || [ -z "$ZENDESK_API_TOKEN" ] || [ -z "$AI_PROCESSING_ENDPOINT" ]; then
-    echo "Error: ZENDESK_API_USER, ZENDESK_API_TOKEN, and AI_PROCESSING_ENDPOINT must be set in .env file"
+if [ -z "$ZENDESK_OAUTH_CLIENT_ID" ] || [ -z "$ZENDESK_OAUTH_CLIENT_SECRET" ] || [ -z "$ZENDESK_SUBDOMAIN" ] || [ -z "$AI_PROCESSING_ENDPOINT" ]; then
+    echo "Error: ZENDESK_OAUTH_CLIENT_ID, ZENDESK_OAUTH_CLIENT_SECRET, ZENDESK_SUBDOMAIN, and AI_PROCESSING_ENDPOINT must be set in .env file"
     exit 1
 fi
 
@@ -23,17 +32,24 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
+if ! zendesk_initialize_auth "webhooks:read triggers:read"; then
+    exit 1
+fi
+
 # First, get all webhooks
 echo "Fetching webhooks..."
-webhooks_response=$(curl -s -i -u "$ZENDESK_API_USER/token:$ZENDESK_API_TOKEN" \
-  -X GET "https://$ZENDESK_SUBDOMAIN.zendesk.com/api/v2/webhooks")
+if ! zendesk_request webhooks_response \
+  -X GET "https://$ZENDESK_SUBDOMAIN.zendesk.com/api/v2/webhooks"; then
+    echo "Error: Failed to contact Zendesk while fetching webhooks"
+    exit 1
+fi
 
 # Echo full response for debugging
 echo "Full Response:"
 echo "$webhooks_response"
 
 # Check HTTP status code
-http_status=$(echo "$webhooks_response" | head -n 1 | cut -d' ' -f2)
+http_status="$ZENDESK_HTTP_STATUS"
 
 if [ "$http_status" != "200" ]; then
     echo "Error: Failed to fetch webhooks. Status code: $http_status"
@@ -46,8 +62,7 @@ if [ "$http_status" != "200" ]; then
     exit 1
 fi
 
-# Extract JSON body (skip headers) - improved version
-json_response=$(echo "$webhooks_response" | sed -n '/^{/,$p')
+json_response="$webhooks_response"
 
 # Debug webhook response
 echo "Debug - Webhook Response:"
@@ -66,8 +81,17 @@ fi
 
 # Get all active triggers
 echo "Fetching triggers..."
-triggers_response=$(curl -s -u "$ZENDESK_API_USER/token:$ZENDESK_API_TOKEN" \
-  -X GET "https://$ZENDESK_SUBDOMAIN.zendesk.com/api/v2/triggers/active.json")
+if ! zendesk_request triggers_response \
+  -X GET "https://$ZENDESK_SUBDOMAIN.zendesk.com/api/v2/triggers/active.json"; then
+    echo "Error: Failed to contact Zendesk while fetching triggers"
+    exit 1
+fi
+
+if [ "$ZENDESK_HTTP_STATUS" != "200" ]; then
+    echo "Error: Failed to fetch triggers. Status code: $ZENDESK_HTTP_STATUS"
+    echo "$triggers_response"
+    exit 1
+fi
 
 # Echo raw response
 echo "Raw Triggers Response:"

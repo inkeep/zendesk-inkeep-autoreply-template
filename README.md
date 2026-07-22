@@ -82,14 +82,14 @@ cp .env.sample .env
 - `AI_AGENT_USER_ID`: The User ID you'd like the AI bot to have if leaving internal comments
 - `ENABLE_PUBLIC_RESPONSES`: Set to `true` to make AI responses visible to customers (defaults to `false` where all responses are internal comments)
 
-Before each Zendesk API call, the Vercel application gets a new OAuth token. It does not store or refresh tokens. If Zendesk returns a server error while issuing a token, the application retries three times and logs each retry. If OAuth still fails and the old API credentials are configured, the application uses them and logs a warning.
+At the start of each webhook request, the Vercel application gets an OAuth token and uses it for that request's Zendesk API calls. Zendesk OAuth tokens expire after 30 minutes by default, which is longer than the application's 60-second maximum request duration, so the application does not need to store or refresh them. If Zendesk returns a server error while issuing a token, the application retries three times and logs each retry. If token creation still fails and the old API credentials are configured, the application uses them and logs a warning.
 
 ### Rolling Out OAuth from a Working API Token
 
 The existing webhook and trigger do not need to change.
 
 1. Create the OAuth client. Add `ZENDESK_OAUTH_CLIENT_ID` and `ZENDESK_OAUTH_CLIENT_SECRET` to Vercel. Keep the old API credentials in Vercel for now, then deploy.
-2. Create a test ticket. Make sure the application adds the expected reply or internal note. Check the Vercel logs. If the old API token was used, you will see `Zendesk OAuth ...; using deprecated API-token fallback`.
+2. Create a test ticket. Make sure the application adds the expected reply or internal note. Check the Vercel logs. If the old API token was used, you will see `Zendesk OAuth token acquisition failed; using deprecated API-token fallback`.
 3. Remove `ZENDESK_API_USER` and `ZENDESK_API_TOKEN` from Vercel and deploy again. Do not revoke the API token in Zendesk yet. This makes it easy to add the old credentials back if something goes wrong.
 4. Create another test ticket. If it works, let the application run normally for a few days and make sure tickets keep getting replies.
 5. Revoke the old API token in Zendesk.

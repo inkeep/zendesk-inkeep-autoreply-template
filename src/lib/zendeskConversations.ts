@@ -23,6 +23,19 @@ export function extractImageUrls(htmlBody: string): string[] {
   return Array.from(htmlBody.matchAll(imgRegex), match => match[1]);
 }
 
+export function validateTextFileUrl(url: string): boolean {
+  const subdomain = process.env.ZENDESK_SUBDOMAIN;
+  
+  const validUrlPattern = new RegExp(`^https:\\/\\/${subdomain}\\.zendesk\\.com\\/attachments\\/token\\/[\\w-]+`, 'i');
+  console.log('Validating text file URL:', url);
+  if (!validUrlPattern.test(url)) {
+    console.log('Invalid text file URL pattern:', url);
+    return false;
+  }
+  
+  return true;
+}
+
 export async function encodeImageUrls(imageUrls: string[]): Promise<ImagePart[]> {
   const MAX_IMAGE_DIMENSION = 600;
   const MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB in bytes
@@ -80,6 +93,74 @@ export async function encodeImageUrls(imageUrls: string[]): Promise<ImagePart[]>
 
   const fileResults = await Promise.all(filePromises);
   return fileResults.filter(result => result !== null);
+}
+
+export async function extractAndEncodeTextFiles(attachments: any[]): Promise<{ type: 'text'; text: string }[]> {
+  const MAX_FILE_SIZE_BYTES = 32 * 1024; // 32KB limit
+  const MAX_TEXT_LENGTH = 3500; //~1,000 tokens
+
+  enum AcceptedFileExtensions {
+    TXT = '.txt',
+    LOG = '.log',
+  }
+
+  const textFilePromises = attachments
+    .filter((attachment: { content_type: string; file_name: string }) => 
+      Object.values(AcceptedFileExtensions).some(ext =>
+        attachment.file_name?.endsWith(ext)
+      )
+    )
+    .map(async (attachment: { content_url: string; file_name: string; size?: number }) => {
+      try {
+        // Check file size before downloading
+        if (attachment.size && attachment.size > MAX_FILE_SIZE_BYTES) {
+          console.log('Text file size exceeds limit:', attachment.file_name);
+          return null;
+        }
+
+        const fullUrl = attachment.content_url.startsWith('//') 
+          ? `https:${attachment.content_url}` 
+          : attachment.content_url;
+        
+        // Validate URL before attempting to fetch
+        if (!validateTextFileUrl(fullUrl)) {
+          console.log('Skipping invalid text file URL:', attachment.file_name);
+          return null;
+        }
+        
+        const response = await fetch(fullUrl);
+        
+        if (!response.ok) {
+          console.log('Failed to fetch text file:', attachment.file_name, `HTTP ${response.status}`);
+          return null;
+        }
+
+        // Validate content type from response
+        const contentType = response.headers.get('content-type');
+        if (contentType && !contentType.includes('text/') && !contentType.includes('application/octet-stream')) {
+          console.log('Unexpected content type for text file:', attachment.file_name, contentType);
+          return null;
+        }
+
+        const textContent = await response.text();
+                
+        // Truncate if too long
+        const truncatedContent = textContent.length > MAX_TEXT_LENGTH 
+          ? textContent.substring(0, MAX_TEXT_LENGTH) + '\n\n[Content truncated...]'
+          : textContent;
+
+        return {
+          type: 'text' as const,
+          text: `File: ${attachment.file_name}\n\n${truncatedContent}`,
+        };
+      } catch (error) {
+        console.log('Failed to process text file:', attachment.file_name, error);
+        return null;
+      }
+    });
+
+  const results = await Promise.all(textFilePromises);
+  return results.filter(result => result !== null);
 }
 
 export function zendeskTicketToAiMessages(messages: ZendeskMessage[]): CoreMessage[] {

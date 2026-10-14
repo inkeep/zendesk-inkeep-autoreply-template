@@ -89,9 +89,18 @@ export function zendeskTicketToAiMessages(messages: ZendeskMessage[], subject?: 
     let content = message.content
     if (subject?.trim() && index === firstUserMessageIndex) {
       const prefix = `${subject}\n\n`
-      content = typeof content === 'string'
-        ? `${prefix}${content}`
-        : [{ type: 'text', text: prefix }, ...content]
+      if (typeof content === 'string') {
+        content = `${prefix}${content}`
+      } else {
+        const firstTextPartIndex = content.findIndex(part => part.type === 'text')
+        content = firstTextPartIndex === -1
+          ? [{ type: 'text', text: subject }, ...content]
+          : content.map((part, partIndex) =>
+              partIndex === firstTextPartIndex && part.type === 'text'
+                ? { ...part, text: `${prefix}${part.text}` }
+                : part,
+            )
+      }
     }
 
     return {

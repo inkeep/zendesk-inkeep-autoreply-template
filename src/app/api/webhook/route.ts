@@ -191,7 +191,7 @@ export const POST = async (req: Request) => {
       console.log(`Processing ticket ${ticket_id} with AI triage`);
 
       if ((process.env.AI_TRIAGE_ENABLED ?? false) === 'true') {
-        const aiTriageData = await aiTriageTicket(zendeskTicketToAiMessages(messages));
+        const aiTriageData = await aiTriageTicket(zendeskTicketToAiMessages(messages, ticketResponse.result.subject))
 
         if (aiTriageData.category === 'account_billing') {
           console.log(`Ticket ${ticket_id}: Identified as billing issue, adding internal note`);
@@ -223,7 +223,7 @@ export const POST = async (req: Request) => {
         }
       }
 
-      const response = await generateQaModeResponse({ messages, metadata });
+      const response = await generateQaModeResponse({ messages, subject: ticketResponse.result.subject, metadata })
       console.log(`AI response generated for ticket ${ticket_id}`);
 
       switch (response.aiAnnotations.answerConfidence) {

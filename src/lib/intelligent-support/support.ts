@@ -13,10 +13,12 @@ const inkeepModel = 'inkeep-qa-expert';
 
 export const generateQaModeResponse = async ({
   messages,
+  subject,
   metadata,
   supportApiKey,
 }: {
   messages: ZendeskMessage[];
+  subject?: string
   metadata?: Record<string, string>;
   supportApiKey?: string;
 }) => {
@@ -30,7 +32,7 @@ export const generateQaModeResponse = async ({
       role: 'system',
       content: systemPrompt,
     },
-    ...zendeskTicketToAiMessages(messages),
+    ...zendeskTicketToAiMessages(messages, subject),
   ];
   console.dir(formattedMessages, { depth: null });
   const { text, toolCalls } = await generateText({

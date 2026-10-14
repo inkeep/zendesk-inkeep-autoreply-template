@@ -82,14 +82,21 @@ export async function encodeImageUrls(imageUrls: string[]): Promise<ImagePart[]>
   return fileResults.filter(result => result !== null);
 }
 
-export function zendeskTicketToAiMessages(messages: ZendeskMessage[]): CoreMessage[] {
-  return [
-    ...messages.map(
-      message =>
-        ({
-          role: message.author.type === 'user' ? 'user' : 'assistant',
-          content: message.content,
-        }) as CoreMessage,
-    ),
-  ];
+export function zendeskTicketToAiMessages(messages: ZendeskMessage[], subject?: string): CoreMessage[] {
+  const firstUserMessageIndex = messages.findIndex(message => message.author.type === 'user')
+
+  return messages.map((message, index) => {
+    let content = message.content
+    if (subject?.trim() && index === firstUserMessageIndex) {
+      const prefix = `${subject}\n\n`
+      content = typeof content === 'string'
+        ? `${prefix}${content}`
+        : [{ type: 'text', text: prefix }, ...content]
+    }
+
+    return {
+      role: message.author.type === 'user' ? 'user' : 'assistant',
+      content,
+    } as CoreMessage
+  })
 }

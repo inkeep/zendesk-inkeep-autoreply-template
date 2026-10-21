@@ -77,6 +77,7 @@ cp .env.sample .env
 - `AUTO_RESPONDER_INKEEP_API_KEY`: Your Inkeep API key (you must have an account at https://portal.inkeep.com)
 
 **Optional variables:**
+- `DISABLE_ANALYTICS`: Set to `true` to skip all Inkeep analytics logging (defaults to `false`)
 - `ZENDESK_API_USER`: Deprecated API-token user email, accepted temporarily as an OAuth migration fallback
 - `ZENDESK_API_TOKEN`: Deprecated API token; must be provided together with `ZENDESK_API_USER`
 - `AI_AGENT_USER_ID`: The User ID you'd like the AI bot to have if leaving internal comments

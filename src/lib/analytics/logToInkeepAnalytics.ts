@@ -10,6 +10,10 @@ export async function logToInkeepAnalytics({
   properties?: { [k: string]: any } | null | undefined;
   userProperties?: UserProperties | null | undefined;
 }): Promise<(OpenAIConversation & { type: 'openai' }) | undefined> {
+  if (process.env.DISABLE_ANALYTICS === 'true') {
+    return undefined
+  }
+
   if (!process.env.AUTO_RESPONDER_INKEEP_API_KEY) {
     return undefined;
   }
